@@ -39,12 +39,13 @@ Response Linter 是一个专为 SillyTavern 设计的扩展，能够：
 
 #### 方法二：通过 URL 在线安装（酒馆内直装，推荐）
 
-这是一个更简单快捷的安装方式，直接在 SillyTavern 界面内完成。
+这是一个更简单快捷的安装方式，直接在 SillyTavern 界面内完成。请复制以下 URL 地址：
+`https://github.com/il1umi/Response-Linter`
 
 ```mermaid
 graph TD
-    A[打开 Silly Tavern] --> B[点击顶部的"扩展"图标 📦];
-    B --> C[在 "Download Extension" 中<br>粘贴仓库 URL<br>https://github.com/il1umi/Response-Linter];
+    A[打开 Silly Tavern] --> B[点击顶部的扩展图标 📦];
+    B --> C[在 Download Extension 中<br>粘贴上方的仓库 URL];
     C --> D{选择安装范围};
     D --> E[Install for all users];
     D --> F[Install just for me];
