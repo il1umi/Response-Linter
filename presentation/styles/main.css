@@ -1239,4 +1239,81 @@ input[type='range']::-moz-range-thumb {
 .rl-status-indicator.processing {
   animation: pulse 1s infinite;
 }
- 
+
+/* 滑块容器样式 - 无边框自由扩展 */
+.rl-sliders-container {
+  margin-top: 12px;
+  min-height: 20px; /* 最小高度，保持布局稳定 */
+  /* 无边框，无背景，纯净的滑块列表 */
+}
+
+.rl-sliders-container:empty::after {
+  content: '暂无必需内容，点击上方"+"按钮添加...';
+  display: block;
+  text-align: center;
+  color: var(--SmartThemeQuoteColor);
+  font-style: italic;
+  font-size: 13px;
+  padding: 16px 0;
+  opacity: 0.8;
+}
+
+/* 更新滑块样式 - 独立行项目 */
+.rl-content-slider {
+  display: flex;
+  align-items: center;
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px; /* 减少间距，更紧凑 */
+  gap: 12px;
+  transition: all 0.2s ease;
+  cursor: grab;
+  position: relative;
+  min-height: 44px; /* 减少高度，更紧凑 */
+}
+
+.rl-content-slider:hover {
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 92%, var(--SmartThemeCheckboxBorderColor) 8%);
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.rl-content-slider.disabled {
+  opacity: 0.65;
+  filter: grayscale(25%);
+}
+
+.rl-content-slider.rl-dragging {
+  z-index: 1000;
+  transform: rotate(1deg) scale(1.02); /* 更轻微的旋转和缩放 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: grabbing;
+}
+
+/* 动画优化 - 保留通用样式 */
+.rl-content-slider,
+.rl-slider-toggle,
+.rl-slider-delete {
+  will-change: transform;
+}
+
+/* 高对比度模式支持 - 保留无障碍样式 */
+@media (prefers-contrast: high) {
+  .rl-content-slider {
+    border-width: 2px;
+  }
+
+  .rl-slider-toggle.on {
+    background: #000;
+    color: #fff;
+  }
+
+  .rl-slider-toggle.off {
+    background: #fff;
+    color: #000;
+    border-color: #000;
+  }
+}

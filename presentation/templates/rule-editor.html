@@ -41,16 +41,17 @@
 
         <div class="rl-form-group">
           <label>必需内容 <span class="required">*</span></label>
-          <div id="rl-required-content-list" class="rl-tag-list rl-sortable">
-            <!-- 动态内容标签将在此添加 -->
-          </div>
           <div class="rl-add-content-group">
             <input id="rl-new-content" type="text" placeholder="添加必需的标签或文本..." />
             <button id="rl-add-content" type="button" class="rl-add-btn">
               <i class="fa-solid fa-plus"></i>
             </button>
           </div>
-          <small class="rl-help-text">添加必须在AI回复中出现的标签、文本或模式。<strong>顺序很重要！</strong></small>
+          <small class="rl-help-text"> 添加必须在AI回复中出现的标签、文本或模式。<strong>顺序很重要！</strong> </small>
+          <!-- 滑块列表区域 - 无边框容器 -->
+          <div id="rl-required-content-list" class="rl-sliders-container">
+            <!-- 动态滑块项目将在此添加 -->
+          </div>
         </div>
 
         <div class="rl-form-group">
