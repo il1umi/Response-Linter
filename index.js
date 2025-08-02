@@ -6,29 +6,6 @@ import { extension_settings } from '../../../extensions.js';
 import { callGenericPopup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
 import { createBackendController } from './core/backend-controller.js';
 
-/**
- * 获取最新AI消息的ID
- * @returns {string|null} 消息ID或null
- */
-function getLatestAIMessageId() {
-  try {
-    // 使用jQuery查找最后一个AI消息
-    const aiMessages = $('#chat .mes').filter(function () {
-      return !$(this).hasClass('user_mes');
-    });
-
-    if (aiMessages.length > 0) {
-      const latestMessage = aiMessages.last();
-      return latestMessage.attr('mesid') || null;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('获取最新AI消息ID失败:', error);
-    return null;
-  }
-}
-
 // 扩展配置
 const extensionName = 'response-linter';
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -70,6 +47,26 @@ const UIState = {
   rules: [],
   currentEditingRule: null,
   isGuideExpanded: false, // 新增：使用指引展开状态
+
+  // 获取最新AI消息的ID
+  getLatestAIMessageId() {
+    try {
+      // 使用jQuery查找最后一个AI消息
+      const aiMessages = $('#chat .mes').filter(function () {
+        return !$(this).hasClass('user_mes');
+      });
+
+      if (aiMessages.length > 0) {
+        const latestMessage = aiMessages.last();
+        return latestMessage.attr('mesid') || null;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('获取最新AI消息ID失败:', error);
+      return null;
+    }
+  },
 
   // 更新状态指示器
   updateStatusIndicator() {
@@ -154,7 +151,7 @@ const UIState = {
     $('#rl-stat-success').text(stats.successRate + '%');
 
     // 更新手动修复按钮状态
-    const latestMessageId = getLatestAIMessageId();
+    const latestMessageId = this.getLatestAIMessageId();
     $('#rl-manual-fix').prop('disabled', !latestMessageId || !this.isExtensionEnabled);
   },
 };
@@ -1502,7 +1499,7 @@ function setupEventHandlers() {
       button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> 修复中...');
 
       // 获取最新AI消息的ID
-      const latestMessageId = getLatestAIMessageId();
+      const latestMessageId = UIState.getLatestAIMessageId();
       if (!latestMessageId) {
         toastr.warning('没有找到可修复的AI消息', '响应检查器');
         return;
@@ -1583,25 +1580,76 @@ function setupEventHandlers() {
 
 // 扩展初始化
 jQuery(async () => {
+  let initializationMode = 'unknown';
+  let moduleInitSuccess = false;
+
   try {
-    // 加载HTML模板
+    console.log('🚀 Response Linter扩展开始初始化...');
+
+    // 🔒 核心UI注册逻辑 - 绝对不能修改
+    console.log('📂 加载HTML模板...');
     const settingsHtml = await $.get(`${extensionFolderPath}/presentation/templates/settings.html`);
     const editorHtml = await $.get(`${extensionFolderPath}/presentation/templates/rule-editor.html`);
 
-    // 添加到扩展设置面板
+    // 🔒 添加到扩展设置面板 - 绝对不能修改
     $('#extensions_settings2').append(settingsHtml);
     $('body').append(editorHtml);
+    console.log('✅ HTML模板加载完成');
 
-    // 设置事件处理器
-    setupEventHandlers();
-    setupBackendEventHandlers();
+    // 🆕 尝试模块化初始化
+    try {
+      console.log('🔧 尝试模块化初始化...');
 
-    // 加载设置
+      // 动态导入UI模块管理器
+      const { UIModuleManager } = await import('./presentation/modules/ui-module-manager.js');
+
+      // 尝试初始化模块
+      moduleInitSuccess = await UIModuleManager.initialize();
+
+      if (moduleInitSuccess) {
+        console.log('🎉 模块化初始化成功！');
+        initializationMode = 'modular';
+      } else {
+        console.log('⚠️ 模块化初始化失败，回退到兼容模式');
+        initializationMode = 'fallback';
+      }
+    } catch (moduleError) {
+      console.error('❌ 模块化初始化出错，回退到兼容模式:', moduleError);
+      moduleInitSuccess = false;
+      initializationMode = 'fallback';
+    }
+
+    // 🔄 兼容模式初始化（原有逻辑）
+    if (!moduleInitSuccess) {
+      console.log('🔧 使用兼容模式初始化...');
+
+      // 设置事件处理器（原有逻辑）
+      setupEventHandlers();
+      setupBackendEventHandlers();
+
+      console.log('✅ 兼容模式初始化完成');
+    } else {
+      // 模块化模式仍需要这些函数，但将来会移到模块中
+      setupEventHandlers();
+      setupBackendEventHandlers();
+    }
+
+    // 🔧 加载设置（两种模式都需要）
     loadSettings();
 
-    console.log('响应检查器扩展已完全加载（UI + 后端）');
+    // 🎯 暴露全局访问点用于调试
+    window.ResponseLinter = window.ResponseLinter || {};
+    window.ResponseLinter.initializationMode = initializationMode;
+    window.ResponseLinter.moduleInitSuccess = moduleInitSuccess;
+
+    console.log(`🎉 Response Linter扩展初始化完成 [模式: ${initializationMode}]`);
   } catch (error) {
-    console.error('响应检查器扩展加载失败:', error);
+    console.error('💥 Response Linter扩展初始化失败:', error);
     toastr.error('响应检查器扩展加载失败', '扩展错误');
+
+    // 记录错误信息用于调试
+    window.ResponseLinter = window.ResponseLinter || {};
+    window.ResponseLinter.initializationError = error;
+    window.ResponseLinter.initializationMode = 'failed';
   }
 });
