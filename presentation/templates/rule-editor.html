@@ -1,0 +1,287 @@
+<div id="rl-rule-editor-modal" class="rl-modal" style="display: none">
+  <div class="rl-modal-content">
+    <div class="rl-modal-header">
+      <h3 id="rl-editor-title">添加新规则</h3>
+      <button id="rl-close-editor" class="rl-close-btn" type="button">
+        <i class="fa-solid fa-times"></i>
+      </button>
+    </div>
+
+    <div class="rl-modal-body">
+      <form id="rl-rule-form">
+        <div class="rl-form-group">
+          <label for="rl-rule-name">规则名称 <span class="required">*</span></label>
+          <input id="rl-rule-name" type="text" placeholder="例如：思维链格式" required />
+          <small class="rl-help-text">为此验证规则提供一个描述性名称</small>
+        </div>
+
+        <div class="rl-form-group">
+          <label for="rl-rule-description">描述</label>
+          <textarea id="rl-rule-description" rows="2" placeholder="可选的规则描述，说明此规则验证什么..."></textarea>
+        </div>
+
+        <!-- 新增：顺序检测说明区域 -->
+        <div class="rl-form-group">
+          <div class="rl-order-detection-guide">
+            <h5><i class="fa-solid fa-list-ol"></i> 顺序检测说明</h5>
+            <div class="rl-guide-content">
+              <p>• 规则将按照下方必需内容的<strong>添加顺序</strong>进行检测</p>
+              <p>• 例如：先添加 <code>&lt;thinking&gt;</code>，后添加 <code>&lt;/thinking&gt;</code></p>
+              <p>• 验证时会确保AI回复中的内容<strong>按此顺序出现</strong></p>
+              <p>• 可拖拽标签重新排序来调整检测顺序</p>
+              <div class="rl-validation-features">
+                <strong>支持的错误检测：</strong>
+                <span class="rl-error-badge missing">标签缺失</span>
+                <span class="rl-error-badge order">顺序错误</span>
+                <span class="rl-error-badge incomplete">配对不完整</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rl-form-group">
+          <label>必需内容 <span class="required">*</span></label>
+          <div id="rl-required-content-list" class="rl-tag-list rl-sortable">
+            <!-- 动态内容标签将在此添加 -->
+          </div>
+          <div class="rl-add-content-group">
+            <input id="rl-new-content" type="text" placeholder="添加必需的标签或文本..." />
+            <button id="rl-add-content" type="button" class="rl-add-btn">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+          <small class="rl-help-text">添加必须在AI回复中出现的标签、文本或模式。<strong>顺序很重要！</strong></small>
+        </div>
+
+        <div class="rl-form-group">
+          <label for="rl-rule-strategy">自动修复策略</label>
+          <select id="rl-rule-strategy">
+            <option value="">无自动修复</option>
+            <option value="thinking-content">思考 → 内容修复</option>
+            <option value="add-missing-tags">添加缺失标签</option>
+            <option value="positional">位置感知修复（推荐）</option>
+            <option value="custom">自定义模式（高级）</option>
+          </select>
+          <small class="rl-help-text">选择如何自动修复此规则发现的问题</small>
+        </div>
+
+        <!-- 新增：位置感知修复策略配置 -->
+        <div id="rl-positional-strategy" class="rl-form-group" style="display: none">
+          <label>位置修复选项</label>
+          <div class="rl-positional-options">
+            <label class="checkbox_label">
+              <input id="rl-insert-double-newline" type="checkbox" checked />
+              <span>使用双换行符分隔（推荐）</span>
+            </label>
+            <small class="rl-help-text">在缺失标签前后添加两个换行符，确保标签独占一行</small>
+          </div>
+
+          <div class="rl-positional-preview">
+            <h6>修复示例预览：</h6>
+            <div class="rl-preview-before">
+              <strong>修复前：</strong>
+              <code>&lt;/thinking&gt;这里是内容&lt;/content&gt;</code>
+            </div>
+            <div class="rl-preview-after">
+              <strong>修复后：</strong>
+              <code>&lt;/thinking&gt;<br /><br />&lt;content&gt;<br />这里是内容&lt;/content&gt;</code>
+            </div>
+          </div>
+        </div>
+
+        <div id="rl-custom-strategy" class="rl-form-group" style="display: none">
+          <label for="rl-fix-pattern">修复模式（正则表达式）</label>
+          <input id="rl-fix-pattern" type="text" placeholder="例如：(<\/thinking>)(\s*)((?!<content>))" />
+          <label for="rl-fix-replacement">替换内容</label>
+          <input id="rl-fix-replacement" type="text" placeholder="例如：$1\n\n<content>\n$3" />
+          <small class="rl-help-text">高级：定义自定义正则表达式模式和替换内容。使用 \n\n 创建双换行符</small>
+        </div>
+
+        <div class="rl-form-group">
+          <label class="checkbox_label" for="rl-rule-enabled">
+            <input id="rl-rule-enabled" type="checkbox" checked />
+            <span>启用此规则</span>
+          </label>
+        </div>
+      </form>
+    </div>
+
+    <div class="rl-modal-footer">
+      <button id="rl-cancel-rule" type="button" class="menu_button secondary">取消</button>
+      <button id="rl-save-rule" type="button" class="menu_button">保存规则</button>
+    </div>
+  </div>
+</div>
+
+<!-- 规则项目模板 -->
+<template id="rl-rule-item-template">
+  <div class="rl-rule-item" data-rule-id="">
+    <div class="rl-rule-header">
+      <div class="rl-rule-info">
+        <span class="rl-rule-name"></span>
+        <small class="rl-rule-description"></small>
+      </div>
+      <div class="rl-rule-controls">
+        <label class="rl-rule-toggle">
+          <input type="checkbox" class="rl-rule-enabled" />
+          <span class="rl-toggle-slider"></span>
+        </label>
+        <button class="rl-edit-rule" type="button" title="编辑规则">
+          <i class="fa-solid fa-edit"></i>
+        </button>
+        <button class="rl-delete-rule" type="button" title="删除规则">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="rl-rule-content">
+      <div class="rl-rule-tags">
+        <!-- 必需内容标签将在此显示 -->
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- 配置向导模态框 -->
+<div id="rl-config-wizard-modal" class="rl-modal" style="display: none">
+  <div class="rl-modal-content">
+    <div class="rl-modal-header">
+      <h3 id="rl-wizard-title">配置向导</h3>
+      <button id="rl-close-wizard" class="rl-close-btn" type="button">
+        <i class="fa-solid fa-times"></i>
+      </button>
+    </div>
+
+    <div class="rl-modal-body">
+      <div class="rl-wizard-container">
+        <!-- 步骤指示器 -->
+        <div class="rl-wizard-steps">
+          <div class="rl-wizard-step active" data-step="1">
+            <div class="rl-step-circle">1</div>
+            <div class="rl-step-label">选择模式</div>
+          </div>
+          <div class="rl-wizard-step" data-step="2">
+            <div class="rl-step-circle">2</div>
+            <div class="rl-step-label">配置内容</div>
+          </div>
+          <div class="rl-wizard-step" data-step="3">
+            <div class="rl-step-circle">3</div>
+            <div class="rl-step-label">测试验证</div>
+          </div>
+          <div class="rl-wizard-step" data-step="4">
+            <div class="rl-step-circle">4</div>
+            <div class="rl-step-label">完成设置</div>
+          </div>
+        </div>
+
+        <!-- 步骤内容 -->
+        <div class="rl-wizard-content">
+          <!-- 步骤1：选择模式 -->
+          <div id="rl-wizard-step-1" class="rl-wizard-panel active">
+            <h4>选择验证模式</h4>
+            <p>请选择您要创建的验证规则类型：</p>
+
+            <div class="rl-wizard-options">
+              <div class="rl-wizard-option" data-mode="thinking">
+                <div class="rl-option-icon">🧠</div>
+                <div class="rl-option-content">
+                  <h5>思维链验证</h5>
+                  <p>验证AI回复包含思考过程和结论内容</p>
+                  <div class="rl-option-example">
+                    示例：<code>&lt;thinking&gt;</code> → <code>&lt;/thinking&gt;</code> →
+                    <code>&lt;content&gt;</code> → <code>&lt;/content&gt;</code>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rl-wizard-option" data-mode="structured">
+                <div class="rl-option-icon">📋</div>
+                <div class="rl-option-content">
+                  <h5>结构化验证</h5>
+                  <p>验证特定格式的结构化内容</p>
+                  <div class="rl-option-example">
+                    示例：<code>## 问题</code> → <code>## 答案</code> 或 <code>```</code> 代码块
+                  </div>
+                </div>
+              </div>
+
+              <div class="rl-wizard-option" data-mode="custom">
+                <div class="rl-option-icon">⚙️</div>
+                <div class="rl-option-content">
+                  <h5>自定义规则</h5>
+                  <p>创建完全自定义的验证规则</p>
+                  <div class="rl-option-example">手动配置所有验证内容和顺序</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 步骤2：配置内容 -->
+          <div id="rl-wizard-step-2" class="rl-wizard-panel">
+            <h4>配置验证内容</h4>
+            <div id="rl-wizard-config-content">
+              <!-- 动态内容将根据选择的模式生成 -->
+            </div>
+          </div>
+
+          <!-- 步骤3：测试验证 -->
+          <div id="rl-wizard-step-3" class="rl-wizard-panel">
+            <h4>测试验证规则</h4>
+            <p>请提供一个示例文本来测试您的规则：</p>
+
+            <div class="rl-form-group">
+              <label for="rl-wizard-test-content">测试内容</label>
+              <textarea
+                id="rl-wizard-test-content"
+                rows="6"
+                placeholder="粘贴或输入一段AI回复内容进行测试..."
+              ></textarea>
+            </div>
+
+            <button id="rl-wizard-test-btn" class="menu_button secondary" type="button">
+              <i class="fa-solid fa-play"></i> 测试验证
+            </button>
+
+            <div id="rl-wizard-test-result" class="rl-test-result" style="display: none">
+              <!-- 测试结果将在此显示 -->
+            </div>
+          </div>
+
+          <!-- 步骤4：完成设置 -->
+          <div id="rl-wizard-step-4" class="rl-wizard-panel">
+            <h4>完成规则设置</h4>
+            <div class="rl-wizard-summary">
+              <h5>规则摘要</h5>
+              <div id="rl-wizard-summary-content">
+                <!-- 规则摘要将在此显示 -->
+              </div>
+            </div>
+
+            <div class="rl-form-group">
+              <label for="rl-wizard-rule-name">规则名称</label>
+              <input id="rl-wizard-rule-name" type="text" placeholder="为您的规则命名..." />
+            </div>
+
+            <div class="rl-form-group">
+              <label for="rl-wizard-rule-description">规则描述（可选）</label>
+              <textarea id="rl-wizard-rule-description" rows="2" placeholder="描述此规则的用途..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rl-modal-footer">
+      <button id="rl-wizard-prev" class="menu_button secondary" type="button" style="display: none">
+        <i class="fa-solid fa-arrow-left"></i> 上一步
+      </button>
+      <button id="rl-wizard-next" class="menu_button" type="button">
+        下一步 <i class="fa-solid fa-arrow-right"></i>
+      </button>
+      <button id="rl-wizard-finish" class="menu_button" type="button" style="display: none">
+        <i class="fa-solid fa-check"></i> 完成
+      </button>
+      <button id="rl-wizard-cancel" class="menu_button secondary" type="button">取消</button>
+    </div>
+  </div>
+</div>

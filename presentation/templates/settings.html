@@ -1,0 +1,193 @@
+<div class="response-linter-settings">
+  <div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>响应检查器</b>
+      <span id="rl-status-indicator" class="rl-status-indicator active" title="扩展状态">●</span>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <!-- 使用指引部分 -->
+      <div class="rl-section">
+        <div class="rl-usage-guide">
+          <div class="rl-guide-header">
+            <h4><i class="fa-solid fa-lightbulb"></i> 使用指引</h4>
+            <button id="rl-toggle-guide" class="rl-guide-toggle" type="button" title="展开/收起指引">
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+          </div>
+
+          <div id="rl-guide-content" class="rl-guide-content" style="display: none">
+            <div class="rl-guide-step">
+              <div class="rl-step-number">1</div>
+              <div class="rl-step-content">
+                <strong>启用扩展</strong>
+                <p>首先启用"响应检查器"开关，然后可选择启用"智能自动修复"功能。</p>
+              </div>
+            </div>
+
+            <div class="rl-guide-step">
+              <div class="rl-step-number">2</div>
+              <div class="rl-step-content">
+                <strong>添加验证规则</strong>
+                <p>使用下方的模板按钮快速添加常用规则，或点击"添加规则"创建自定义规则。</p>
+              </div>
+            </div>
+
+            <div class="rl-guide-step">
+              <div class="rl-step-number">3</div>
+              <div class="rl-step-content">
+                <strong>配置检测顺序</strong>
+                <p>在规则编辑器中，按正确顺序添加必需内容。支持拖拽排序调整检测顺序。</p>
+              </div>
+            </div>
+
+            <div class="rl-guide-step">
+              <div class="rl-step-number">4</div>
+              <div class="rl-step-content">
+                <strong>测试和调优</strong>
+                <p>使用"测试验证"按钮测试配置，根据统计信息调优规则设置。</p>
+              </div>
+            </div>
+
+            <div class="rl-guide-tips">
+              <h5><i class="fa-solid fa-star"></i> 使用技巧</h5>
+              <ul>
+                <li><strong>位置感知验证</strong>：规则会检查标签出现的顺序，确保AI回复结构正确</li>
+                <li><strong>错误分类</strong>：系统能区分"标签缺失"和"顺序错误"，提供精确的修复建议</li>
+                <li><strong>智能修复</strong>：启用后可自动修复常见格式问题，支持双换行符插入</li>
+                <li><strong>导入导出</strong>：可以导出规则配置与他人分享，或导入他人的规则设置</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="sysHR" />
+
+      <!-- 主要控制部分 -->
+      <div class="rl-section">
+        <div class="rl-control-group">
+          <label class="checkbox_label" for="rl-enabled">
+            <input id="rl-enabled" type="checkbox" />
+            <span>启用响应检查器</span>
+          </label>
+          <small class="rl-help-text">自动根据定义的规则验证AI回复内容</small>
+        </div>
+
+        <div class="rl-control-group">
+          <label class="checkbox_label" for="rl-auto-fix">
+            <input id="rl-auto-fix" type="checkbox" />
+            <span>启用智能自动修复</span>
+          </label>
+          <small class="rl-help-text">在可能的情况下自动修复常见的格式问题</small>
+        </div>
+      </div>
+
+      <hr class="sysHR" />
+
+      <!-- 验证规则管理 -->
+      <div class="rl-section">
+        <h4>验证规则</h4>
+
+        <div class="rl-section-header">
+          <button id="rl-add-rule" class="menu_button" type="button"><i class="fa-solid fa-plus"></i> 添加规则</button>
+          <button id="rl-config-wizard" class="menu_button secondary" type="button">
+            <i class="fa-solid fa-magic"></i> 配置向导
+          </button>
+        </div>
+
+        <!-- 新增：常用规则模板 -->
+        <div class="rl-control-group">
+          <label>快速添加常用规则模板：</label>
+          <div class="rl-template-buttons">
+            <button id="rl-template-thinking" class="menu_button secondary small" type="button">
+              <i class="fa-solid fa-brain"></i> 思维链模板
+            </button>
+            <button id="rl-template-code" class="menu_button secondary small" type="button">
+              <i class="fa-solid fa-code"></i> 代码块模板
+            </button>
+            <button id="rl-template-qa" class="menu_button secondary small" type="button">
+              <i class="fa-solid fa-question-circle"></i> 问答模板
+            </button>
+          </div>
+          <small class="rl-help-text">点击按钮快速添加预设的验证规则模板</small>
+        </div>
+
+        <div id="rl-rules-list" class="rl-rules-container">
+          <!-- 规则将在此处动态填充 -->
+        </div>
+
+        <div class="rl-control-group" style="margin-top: 10px">
+          <button id="rl-demo-validation" class="menu_button secondary" type="button">
+            <i class="fa-solid fa-play"></i> 测试验证
+          </button>
+          <button id="rl-manual-fix" class="menu_button secondary" type="button" disabled>
+            <i class="fa-solid fa-wrench"></i> 手动修复最新消息
+          </button>
+          <button id="rl-import-rules" class="menu_button secondary" type="button">
+            <i class="fa-solid fa-download"></i> 导入
+          </button>
+          <button id="rl-export-rules" class="menu_button secondary" type="button">
+            <i class="fa-solid fa-upload"></i> 导出
+          </button>
+        </div>
+      </div>
+
+      <hr class="sysHR" />
+
+      <!-- 通知设置部分 -->
+      <div class="rl-section">
+        <h4>通知设置</h4>
+
+        <div class="rl-control-group">
+          <label for="rl-notification-duration">通知持续时间（秒）</label>
+          <input id="rl-notification-duration" type="range" min="2" max="10" step="1" value="5" />
+          <span id="rl-duration-display">5秒</span>
+        </div>
+
+        <div class="rl-control-group">
+          <label class="checkbox_label" for="rl-show-success">
+            <input id="rl-show-success" type="checkbox" checked />
+            <span>显示成功通知</span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="sysHR" />
+
+      <!-- 统计部分 -->
+      <div class="rl-section">
+        <h4>统计信息</h4>
+        <div class="rl-stats-grid">
+          <div class="rl-stat">
+            <span class="rl-stat-label">验证次数：</span>
+            <span id="rl-stat-validations" class="rl-stat-value">0</span>
+          </div>
+          <div class="rl-stat">
+            <span class="rl-stat-label">成功修复：</span>
+            <span id="rl-stat-fixes" class="rl-stat-value">0</span>
+          </div>
+          <div class="rl-stat">
+            <span class="rl-stat-label">修复尝试：</span>
+            <span id="rl-stat-fix-attempts" class="rl-stat-value">0</span>
+          </div>
+          <div class="rl-stat">
+            <span class="rl-stat-label">用户取消：</span>
+            <span id="rl-stat-cancellations" class="rl-stat-value">0</span>
+          </div>
+          <div class="rl-stat">
+            <span class="rl-stat-label">修复成功率：</span>
+            <span id="rl-stat-fix-success" class="rl-stat-value">0%</span>
+          </div>
+          <div class="rl-stat">
+            <span class="rl-stat-label">验证成功率：</span>
+            <span id="rl-stat-success" class="rl-stat-value">100%</span>
+          </div>
+        </div>
+        <button id="rl-reset-stats" class="menu_button secondary" type="button" style="margin-top: 10px">
+          重置统计
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

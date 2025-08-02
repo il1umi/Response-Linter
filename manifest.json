@@ -1,0 +1,11 @@
+{
+  "display_name": "Response Linter",
+  "loading_order": 666,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "presentation/styles/main.css",
+  "author": "shin/il1umi",
+  "version": "1.0.0",
+  "homePage": "https://github.com/il1umi/Response-Linter.git"
+}

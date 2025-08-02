@@ -1,0 +1,1241 @@
+/* Response Linter Extension Styles */
+
+/* Status Indicator */
+.rl-status-indicator {
+  font-size: 12px;
+  margin-left: 8px;
+  transition: color 0.3s ease;
+}
+
+.rl-status-indicator.active {
+  color: #28a745;
+}
+.rl-status-indicator.warning {
+  color: #ffc107;
+}
+.rl-status-indicator.error {
+  color: #dc3545;
+}
+.rl-status-indicator.disabled {
+  color: #6c757d;
+}
+
+/* Section Layout */
+.rl-section {
+  margin-bottom: 15px;
+}
+
+.rl-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.1em;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* Control Groups */
+.rl-control-group {
+  margin-bottom: 12px;
+}
+
+.rl-control-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-help-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.9em;
+  color: var(--SmartThemeQuoteColor);
+  line-height: 1.3;
+}
+
+/* Rules Container */
+.rl-rules-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--SmartThemeBlurTintColor);
+}
+
+.rl-rules-container:empty::after {
+  content: '尚未定义规则。点击' 添加规则 '创建您的第一个验证规则。';
+  display: block;
+  text-align: center;
+  color: var(--SmartThemeQuoteColor);
+  font-style: italic;
+  padding: 20px;
+}
+
+/* Rule Items */
+.rl-rule-item {
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeBodyColor);
+  transition: all 0.2s ease;
+}
+
+.rl-rule-item:hover {
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 80%, var(--SmartThemeBodyColor) 5%);
+}
+
+.rl-rule-item.disabled {
+  opacity: 0.6;
+  filter: grayscale(20%);
+}
+
+.rl-rule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.rl-rule-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rl-rule-name {
+  font-weight: 600;
+  font-size: 1em;
+  display: block;
+  margin-bottom: 2px;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-rule-description {
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.9em;
+  line-height: 1.3;
+  opacity: 0.9;
+}
+
+.rl-rule-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+/* Toggle Switch */
+.rl-rule-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.rl-rule-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rl-toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.rl-toggle-slider:before {
+  position: absolute;
+  content: '';
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.rl-rule-toggle input:checked + .rl-toggle-slider {
+  background-color: #28a745;
+}
+
+.rl-rule-toggle input:checked + .rl-toggle-slider:before {
+  transform: translateX(20px);
+}
+
+/* Rule Action Buttons */
+.rl-edit-rule,
+.rl-delete-rule {
+  background: none;
+  border: none;
+  color: var(--SmartThemeQuoteColor);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.rl-edit-rule:hover {
+  color: var(--SmartThemeBodyColor);
+  background: var(--SmartThemeBlurTintColor);
+}
+
+.rl-delete-rule:hover {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+}
+
+/* Rule Content */
+.rl-rule-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.rl-tag {
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeBodyColor);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  border: 1px solid var(--SmartThemeBorderColor);
+}
+
+/* Statistics Grid */
+.rl-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.rl-stat {
+  text-align: center;
+  padding: 8px;
+  background: var(--SmartThemeBlurTintColor);
+  border-radius: 6px;
+  border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.rl-stat-label {
+  display: block;
+  font-size: 0.9em;
+  color: var(--SmartThemeQuoteColor);
+  margin-bottom: 4px;
+}
+
+.rl-stat-value {
+  display: block;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--SmartThemeBodyColor);
+}
+
+/* Modal Styles */
+.rl-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.rl-modal-content {
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeBodyColor);
+  border-radius: 10px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.rl-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--SmartThemeBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 70%, var(--SmartThemeBodyColor) 3%);
+}
+
+.rl-modal-header h3 {
+  margin: 0;
+  font-size: 1.3em;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-close-btn {
+  background: none;
+  border: none;
+  color: var(--SmartThemeQuoteColor);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.rl-close-btn:hover {
+  color: var(--SmartThemeBodyColor);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rl-modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.rl-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--SmartThemeBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 70%, var(--SmartThemeBodyColor) 3%);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Form Styles */
+.rl-form-group {
+  margin-bottom: 16px;
+}
+
+.rl-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-form-group input[type='text'],
+.rl-form-group textarea,
+.rl-form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 4px;
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeBodyColor);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.rl-form-group input[type='text']:focus,
+.rl-form-group textarea:focus,
+.rl-form-group select:focus {
+  outline: none;
+  border-color: var(--SmartThemeCheckboxBorderColor);
+}
+
+.required {
+  color: #dc3545;
+}
+
+/* Tag List */
+.rl-tag-list {
+  min-height: 40px;
+  border: 1px dashed var(--SmartThemeBorderColor);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.rl-tag-list:empty::after {
+  content: '尚未添加必需内容...';
+  color: var(--SmartThemeQuoteColor);
+  font-style: italic;
+}
+
+.rl-content-tag {
+  background: var(--SmartThemeCheckboxBorderColor);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rl-content-tag .rl-remove-tag {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+  transition: background-color 0.2s ease;
+}
+
+.rl-content-tag .rl-remove-tag:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.rl-add-content-group {
+  display: flex;
+  gap: 8px;
+}
+
+.rl-add-content-group input {
+  flex: 1;
+}
+
+.rl-add-btn {
+  background: var(--SmartThemeCheckboxBorderColor);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.rl-add-btn:hover {
+  background: var(--SmartThemeBodyColor);
+}
+
+/* Range Input Styling */
+input[type='range'] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--SmartThemeBlurTintColor);
+  outline: none;
+  margin: 8px 0;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--SmartThemeCheckboxBorderColor);
+  cursor: pointer;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--SmartThemeCheckboxBorderColor);
+  cursor: pointer;
+  border: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .rl-modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+
+  .rl-rule-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .rl-rule-controls {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+
+  .rl-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 新增：顺序检测指引样式 */
+.rl-order-detection-guide {
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 10%, var(--SmartThemeBlurTintColor));
+  border: 1px solid var(--SmartThemeCheckboxBorderColor);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.rl-order-detection-guide h5 {
+  margin: 0 0 8px 0;
+  color: var(--SmartThemeCheckboxBorderColor);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.rl-order-detection-guide h5 i {
+  margin-right: 6px;
+}
+
+.rl-guide-content p {
+  margin: 4px 0;
+  font-size: 0.9em;
+  line-height: 1.4;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-guide-content code {
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeCheckboxBorderColor);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+}
+
+.rl-validation-features {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.rl-validation-features strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-validation-features .rl-error-badge {
+  margin-right: 6px;
+  margin-bottom: 4px;
+  display: inline-block;
+  font-size: 0.75em;
+}
+
+/* 可排序标签列表样式 */
+.rl-sortable {
+  min-height: 50px;
+}
+
+.rl-sortable .rl-content-tag {
+  cursor: move;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.rl-sortable .rl-content-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.rl-sortable .rl-content-tag.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+.rl-sortable .rl-content-tag::before {
+  content: '⋮⋮';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* 位置感知修复配置样式 */
+.rl-positional-options {
+  margin-bottom: 12px;
+}
+
+.rl-positional-preview {
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.rl-positional-preview h6 {
+  margin: 0 0 8px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.rl-preview-before,
+.rl-preview-after {
+  margin: 6px 0;
+  font-size: 0.85em;
+}
+
+.rl-preview-before strong,
+.rl-preview-after strong {
+  color: var(--SmartThemeBodyColor);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.rl-preview-before code,
+.rl-preview-after code {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--SmartThemeBodyColor);
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  display: block;
+  white-space: pre;
+  border-left: 3px solid var(--SmartThemeQuoteColor);
+  margin-left: 8px;
+}
+
+.rl-preview-after code {
+  border-left-color: var(--SmartThemeCheckboxBorderColor);
+}
+
+/* 增强必需内容提示文本 */
+.rl-help-text strong {
+  color: var(--SmartThemeCheckboxBorderColor);
+  font-weight: 600;
+}
+
+/* 模板按钮样式 */
+.rl-template-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.menu_button.small {
+  padding: 6px 12px;
+  font-size: 0.85em;
+  min-height: auto;
+}
+
+.rl-template-buttons .menu_button {
+  white-space: nowrap;
+}
+
+.rl-template-buttons .menu_button i {
+  margin-right: 4px;
+}
+
+/* 使用指引样式 */
+.rl-usage-guide {
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 5%, var(--SmartThemeBlurTintColor));
+  border: 1px solid var(--SmartThemeCheckboxBorderColor);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rl-guide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 10%, var(--SmartThemeBlurTintColor));
+  border-bottom: 1px solid var(--SmartThemeBorderColor);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.rl-guide-header:hover {
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 15%, var(--SmartThemeBlurTintColor));
+}
+
+.rl-guide-header h4 {
+  margin: 0;
+  color: var(--SmartThemeCheckboxBorderColor);
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.rl-guide-header h4 i {
+  margin-right: 8px;
+}
+
+.rl-guide-toggle {
+  background: none;
+  border: none;
+  color: var(--SmartThemeCheckboxBorderColor);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  font-size: 1.1em;
+}
+
+.rl-guide-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.rl-guide-toggle.expanded i {
+  transform: rotate(180deg);
+}
+
+.rl-guide-content {
+  padding: 16px;
+  animation: slideDown 0.3s ease;
+}
+
+.rl-guide-step {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.rl-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--SmartThemeCheckboxBorderColor);
+  color: white;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 0.9em;
+  margin-right: 12px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rl-step-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.rl-step-content strong {
+  display: block;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1em;
+  margin-bottom: 4px;
+}
+
+.rl-step-content p {
+  margin: 0;
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.rl-guide-tips {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.rl-guide-tips h5 {
+  margin: 0 0 12px 0;
+  color: var(--SmartThemeCheckboxBorderColor);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.rl-guide-tips h5 i {
+  margin-right: 6px;
+}
+
+.rl-guide-tips ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.rl-guide-tips li {
+  margin-bottom: 8px;
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.rl-guide-tips li strong {
+  color: var(--SmartThemeBodyColor);
+}
+
+/* 滑动展开动画 */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}
+
+/* 响应式模板按钮 */
+@media (max-width: 768px) {
+  .rl-template-buttons {
+    flex-direction: column;
+  }
+
+  .rl-template-buttons .menu_button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 配置向导样式 */
+.rl-wizard-container {
+  min-height: 400px;
+}
+
+.rl-wizard-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 0 20px;
+  position: relative;
+}
+
+.rl-wizard-steps::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 50px;
+  right: 50px;
+  height: 2px;
+  background: var(--SmartThemeBorderColor);
+  z-index: 1;
+}
+
+.rl-wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.rl-step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--SmartThemeBorderColor);
+  color: var(--SmartThemeBodyColor);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9em;
+  margin-bottom: 6px;
+  transition: all 0.3s ease;
+}
+
+.rl-wizard-step.active .rl-step-circle {
+  background: var(--SmartThemeCheckboxBorderColor);
+  color: white;
+  transform: scale(1.1);
+}
+
+.rl-wizard-step.completed .rl-step-circle {
+  background: #28a745;
+  color: white;
+}
+
+.rl-step-label {
+  font-size: 0.85em;
+  color: var(--SmartThemeQuoteColor);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.rl-wizard-step.active .rl-step-label {
+  color: var(--SmartThemeBodyColor);
+  font-weight: 500;
+}
+
+.rl-wizard-content {
+  min-height: 300px;
+}
+
+.rl-wizard-panel {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.rl-wizard-panel.active {
+  display: block;
+}
+
+.rl-wizard-panel h4 {
+  margin: 0 0 12px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1.2em;
+}
+
+.rl-wizard-panel p {
+  margin: 0 0 16px 0;
+  color: var(--SmartThemeQuoteColor);
+  line-height: 1.4;
+}
+
+/* 向导选项卡片 */
+.rl-wizard-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rl-wizard-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  border: 2px solid var(--SmartThemeBorderColor);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--SmartThemeBlurTintColor);
+}
+
+.rl-wizard-option:hover {
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 90%, var(--SmartThemeCheckboxBorderColor) 10%);
+}
+
+.rl-wizard-option.selected {
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 80%, var(--SmartThemeCheckboxBorderColor) 20%);
+}
+
+.rl-option-icon {
+  font-size: 2em;
+  margin-right: 16px;
+  margin-top: 4px;
+}
+
+.rl-option-content {
+  flex: 1;
+}
+
+.rl-option-content h5 {
+  margin: 0 0 6px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.rl-option-content p {
+  margin: 0 0 8px 0;
+  font-size: 0.9em;
+  color: var(--SmartThemeQuoteColor);
+}
+
+.rl-option-example {
+  font-size: 0.85em;
+  color: var(--SmartThemeQuoteColor);
+  font-style: italic;
+}
+
+.rl-option-example code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+/* 测试结果样式 */
+.rl-test-result {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--SmartThemeBorderColor);
+  background: var(--SmartThemeBlurTintColor);
+}
+
+.rl-test-result.success {
+  border-color: #28a745;
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 90%, #28a745 10%);
+}
+
+.rl-test-result.error {
+  border-color: #dc3545;
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 90%, #dc3545 10%);
+}
+
+.rl-test-result h5 {
+  margin: 0 0 8px 0;
+  font-size: 1em;
+}
+
+.rl-test-result.success h5 {
+  color: #28a745;
+}
+
+.rl-test-result.error h5 {
+  color: #dc3545;
+}
+
+/* 向导摘要样式 */
+.rl-wizard-summary {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+}
+
+.rl-wizard-summary h5 {
+  margin: 0 0 12px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.rl-summary-item {
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+
+.rl-summary-label {
+  color: var(--SmartThemeQuoteColor);
+  margin-right: 8px;
+}
+
+.rl-summary-value {
+  color: var(--SmartThemeBodyColor);
+  font-weight: 500;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 向导标签输入样式 */
+.rl-wizard-tag-input {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.rl-wizard-tag-input input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 4px;
+  background: var(--SmartThemeBlurTintColor);
+  color: var(--SmartThemeBodyColor);
+  font-size: 0.9em;
+}
+
+.rl-wizard-tag-input input:focus {
+  outline: none;
+  border-color: var(--SmartThemeCheckboxBorderColor);
+}
+
+.rl-remove-wizard-tag {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.rl-remove-wizard-tag:hover {
+  background: #c82333;
+}
+
+/* 向导预览样式 */
+.rl-wizard-preview {
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.rl-preview-item {
+  margin: 4px 0;
+  font-size: 0.9em;
+  color: var(--SmartThemeBodyColor);
+}
+
+.rl-preview-item code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: var(--SmartThemeCheckboxBorderColor);
+}
+
+/* 向导子选项样式 */
+.rl-wizard-sub-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.rl-wizard-sub-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  border: 2px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--SmartThemeBlurTintColor);
+}
+
+.rl-wizard-sub-option:hover {
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 90%, var(--SmartThemeCheckboxBorderColor) 10%);
+}
+
+.rl-wizard-sub-option.selected {
+  border-color: var(--SmartThemeCheckboxBorderColor);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 80%, var(--SmartThemeCheckboxBorderColor) 20%);
+}
+
+.rl-wizard-sub-option h6 {
+  margin: 0 0 4px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.rl-wizard-sub-option p {
+  margin: 0;
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.9em;
+}
+
+/* 详细错误信息显示样式 */
+.rl-validation-error-detail {
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  font-size: 0.9em;
+}
+
+.rl-error-type {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.rl-error-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 600;
+  margin-left: 8px;
+  color: white;
+}
+
+.rl-error-badge.missing {
+  background: #dc3545;
+}
+
+.rl-error-badge.order {
+  background: #fd7e14;
+}
+
+.rl-error-badge.incomplete {
+  background: #6610f2;
+}
+
+.rl-error-position,
+.rl-suggested-fix {
+  margin: 4px 0;
+  color: var(--SmartThemeBodyColor);
+  line-height: 1.4;
+}
+
+.rl-error-position strong,
+.rl-suggested-fix strong {
+  color: var(--SmartThemeCheckboxBorderColor);
+}
+
+.rl-error-code {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--SmartThemeBodyColor);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+}
+
+/* Toastr 样式重写 - 详细错误信息 */
+.toast-warning .rl-validation-error-detail {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toast-warning .rl-error-badge {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toast-warning .rl-error-code {
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Animation for status indicator */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.rl-status-indicator.processing {
+  animation: pulse 1s infinite;
+}
