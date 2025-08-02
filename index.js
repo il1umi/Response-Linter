@@ -699,12 +699,17 @@ const RuleEditor = {
     container.empty();
 
     this.currentTags.forEach((content, index) => {
-      const tag = $(`
-                <div class="rl-content-tag" draggable="true" data-index="${index}">
-                    <span>${content}</span>
-                    <button type="button" class="rl-remove-tag" data-content="${content}">×</button>
-                </div>
-            `);
+      // 安全地创建DOM元素，避免HTML注入问题
+      const tag = $('<div>').addClass('rl-content-tag').attr('draggable', 'true').attr('data-index', index);
+
+      const span = $('<span>').text(content); // 使用.text()安全地设置文本内容
+      const removeBtn = $('<button>')
+        .attr('type', 'button')
+        .addClass('rl-remove-tag')
+        .attr('data-content', content) // 使用.attr()安全地设置属性
+        .text('×');
+
+      tag.append(span).append(removeBtn);
       container.append(tag);
     });
 
