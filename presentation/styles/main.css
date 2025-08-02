@@ -1,4 +1,5 @@
-/* Response Linter Extension Styles */
+/* Response Linter Extension Styles v2.1 - 滑块重构版本 */
+/* 强制浏览器刷新缓存：2024-01-02-v2.1 */
 
 /* Status Indicator */
 .rl-status-indicator {
@@ -355,54 +356,18 @@
   color: #dc3545;
 }
 
-/* Tag List */
+/* Tag List - 已移除，使用新的滑块容器样式 */
+/* 保留用于向后兼容的空样式定义 */
 .rl-tag-list {
-  min-height: 40px;
-  border: 1px dashed var(--SmartThemeBorderColor);
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.rl-tag-list:empty::after {
-  content: '尚未添加必需内容...';
-  color: var(--SmartThemeQuoteColor);
-  font-style: italic;
+  /* 移除样式，使用rl-sliders-container */
 }
 
 .rl-content-tag {
-  background: var(--SmartThemeCheckboxBorderColor);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.9em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  /* 移除样式，使用rl-content-slider */
 }
 
 .rl-content-tag .rl-remove-tag {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8em;
-  transition: background-color 0.2s ease;
-}
-
-.rl-content-tag .rl-remove-tag:hover {
-  background: rgba(255, 255, 255, 0.2);
+  /* 移除样式，使用新的删除按钮 */
 }
 
 .rl-add-content-group {
@@ -534,38 +499,6 @@ input[type='range']::-moz-range-thumb {
   margin-bottom: 4px;
   display: inline-block;
   font-size: 0.75em;
-}
-
-/* 可排序标签列表样式 */
-.rl-sortable {
-  min-height: 50px;
-}
-
-.rl-sortable .rl-content-tag {
-  cursor: move;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.rl-sortable .rl-content-tag:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.rl-sortable .rl-content-tag.dragging {
-  opacity: 0.5;
-  transform: rotate(2deg);
-}
-
-.rl-sortable .rl-content-tag::before {
-  content: '⋮⋮';
-  position: absolute;
-  left: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10px;
-  line-height: 1;
 }
 
 /* 位置感知修复配置样式 */
@@ -1240,80 +1173,235 @@ input[type='range']::-moz-range-thumb {
   animation: pulse 1s infinite;
 }
 
-/* 滑块容器样式 - 无边框自由扩展 */
+/* 滑块容器样式 - 模仿酒馆规则项目 v2.0 */
 .rl-sliders-container {
-  margin-top: 12px;
-  min-height: 20px; /* 最小高度，保持布局稳定 */
-  /* 无边框，无背景，纯净的滑块列表 */
+  margin-top: 12px !important;
+  min-height: 20px !important;
 }
 
 .rl-sliders-container:empty::after {
-  content: '暂无必需内容，点击上方"+"按钮添加...';
-  display: block;
-  text-align: center;
-  color: var(--SmartThemeQuoteColor);
-  font-style: italic;
-  font-size: 13px;
-  padding: 16px 0;
-  opacity: 0.8;
+  content: '暂无必需内容，点击上方"+"按钮添加...' !important;
+  display: block !important;
+  text-align: center !important;
+  color: var(--SmartThemeQuoteColor) !important;
+  font-style: italic !important;
+  font-size: 13px !important;
+  padding: 16px 0 !important;
+  opacity: 0.8 !important;
 }
 
-/* 更新滑块样式 - 独立行项目 */
+/* 滑块样式 - 模仿规则项目设计 v2.0 */
 .rl-content-slider {
-  display: flex;
-  align-items: center;
-  background: var(--SmartThemeBlurTintColor);
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 6px; /* 减少间距，更紧凑 */
-  gap: 12px;
-  transition: all 0.2s ease;
-  cursor: grab;
-  position: relative;
-  min-height: 44px; /* 减少高度，更紧凑 */
+  border: 1px solid var(--SmartThemeBorderColor) !important;
+  border-radius: 6px !important;
+  margin-bottom: 8px !important;
+  padding: 12px !important;
+  background: var(--SmartThemeBlurTintColor) !important;
+  color: var(--SmartThemeBodyColor) !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  position: relative !important;
+  cursor: grab !important;
 }
 
 .rl-content-slider:hover {
-  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 92%, var(--SmartThemeCheckboxBorderColor) 8%);
   border-color: var(--SmartThemeCheckboxBorderColor);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 80%, var(--SmartThemeBodyColor) 5%);
 }
 
 .rl-content-slider.disabled {
-  opacity: 0.65;
-  filter: grayscale(25%);
+  opacity: 0.6;
+  filter: grayscale(20%);
 }
 
 .rl-content-slider.rl-dragging {
   z-index: 1000;
-  transform: rotate(1deg) scale(1.02); /* 更轻微的旋转和缩放 */
+  transform: rotate(1deg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   cursor: grabbing;
 }
 
-/* 动画优化 - 保留通用样式 */
+/* 拖拽手柄 - 类似规则项目的结构 */
+.rl-slider-handle {
+  color: var(--SmartThemeQuoteColor);
+  font-size: 14px;
+  margin-right: 12px;
+  cursor: grab;
+  padding: 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  user-select: none;
+  opacity: 0.7;
+}
+
+.rl-slider-handle:hover {
+  background: color-mix(in srgb, var(--SmartThemeQuoteColor) 10%, transparent 90%);
+  opacity: 1;
+}
+
+.rl-content-slider:active .rl-slider-handle {
+  cursor: grabbing;
+}
+
+/* 滑块信息区域 - 模仿 rl-rule-info */
+.rl-slider-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 滑块内容显示 - 模仿 rl-rule-name */
+.rl-slider-content {
+  font-weight: 600;
+  font-size: 1em;
+  color: var(--SmartThemeBodyColor);
+  word-break: break-word;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.rl-content-slider.disabled .rl-slider-content {
+  opacity: 0.7;
+}
+
+/* 滑块状态指示 - 模仿 rl-rule-description */
+.rl-slider-status {
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.85em;
+  line-height: 1.3;
+  opacity: 0.9;
+  margin: 0;
+}
+
+/* 滑块控制区域 - 模仿 rl-rule-controls */
+.rl-slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+/* 开关按钮 - 模仿酒馆的toggle样式 */
+.rl-slider-toggle-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.rl-slider-toggle {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rl-slider-toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.rl-slider-toggle-track:before {
+  position: absolute;
+  content: '';
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.rl-slider-toggle:checked + .rl-slider-toggle-track {
+  background-color: var(--SmartThemeCheckboxBorderColor);
+}
+
+.rl-slider-toggle:checked + .rl-slider-toggle-track:before {
+  transform: translateX(20px);
+}
+
+/* 删除按钮 - 模仿酒馆按钮样式 */
+.rl-slider-delete {
+  background: none;
+  border: none;
+  color: var(--SmartThemeQuoteColor);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.rl-slider-delete:hover {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+}
+
+/* 拖拽占位符 */
+.rl-drag-placeholder {
+  border: 2px dashed var(--SmartThemeCheckboxBorderColor);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 5%, transparent 95%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+.rl-placeholder-content {
+  color: var(--SmartThemeCheckboxBorderColor);
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .rl-content-slider {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .rl-slider-controls {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+}
+
+/* 动画优化 */
 .rl-content-slider,
-.rl-slider-toggle,
+.rl-slider-toggle-track,
 .rl-slider-delete {
   will-change: transform;
 }
 
-/* 高对比度模式支持 - 保留无障碍样式 */
+/* 高对比度模式支持 */
 @media (prefers-contrast: high) {
   .rl-content-slider {
     border-width: 2px;
   }
 
-  .rl-slider-toggle.on {
-    background: #000;
-    color: #fff;
+  .rl-slider-toggle:checked + .rl-slider-toggle-track {
+    background-color: #000;
   }
 
-  .rl-slider-toggle.off {
-    background: #fff;
-    color: #000;
-    border-color: #000;
+  .rl-slider-toggle-track {
+    background-color: #fff;
+    border: 1px solid #000;
   }
 }

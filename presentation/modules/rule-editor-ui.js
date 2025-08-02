@@ -297,32 +297,60 @@ export class RuleEditorUI {
       dragHandle.innerHTML = '⋮⋮';
       dragHandle.title = '拖拽排序';
 
-      // 内容显示
+      // 滑块信息区域（模仿rl-rule-info结构）
+      const sliderInfo = document.createElement('div');
+      sliderInfo.className = 'rl-slider-info';
+
+      // 内容显示（模仿rl-rule-name）
       const contentSpan = document.createElement('span');
       contentSpan.className = 'rl-slider-content';
       contentSpan.textContent = slider.content;
 
-      // 开关按钮
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = `rl-slider-toggle ${slider.enabled ? 'on' : 'off'}`;
-      toggleBtn.innerHTML = slider.enabled ? '✓' : '✗';
-      toggleBtn.title = slider.enabled ? '点击禁用' : '点击启用';
-      toggleBtn.setAttribute('data-slider-id', slider.id);
+      // 状态指示（模仿rl-rule-description）
+      const statusSpan = document.createElement('small');
+      statusSpan.className = 'rl-slider-status';
+      statusSpan.textContent = slider.enabled ? '已启用' : '已禁用';
+
+      // 组装信息区域
+      sliderInfo.appendChild(contentSpan);
+      sliderInfo.appendChild(statusSpan);
+
+      // 滑块控制区域（模仿rl-rule-controls）
+      const sliderControls = document.createElement('div');
+      sliderControls.className = 'rl-slider-controls';
+
+      // 开关按钮（模仿酒馆toggle样式）
+      const toggleWrapper = document.createElement('label');
+      toggleWrapper.className = 'rl-slider-toggle-wrapper';
+
+      const toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.className = 'rl-slider-toggle';
+      toggleInput.checked = slider.enabled;
+      toggleInput.setAttribute('data-slider-id', slider.id);
+
+      const toggleTrack = document.createElement('span');
+      toggleTrack.className = 'rl-slider-toggle-track';
+
+      toggleWrapper.appendChild(toggleInput);
+      toggleWrapper.appendChild(toggleTrack);
 
       // 删除按钮
       const deleteBtn = document.createElement('button');
       deleteBtn.type = 'button';
       deleteBtn.className = 'rl-slider-delete';
-      deleteBtn.innerHTML = '🗑';
+      deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
       deleteBtn.title = '删除';
       deleteBtn.setAttribute('data-slider-id', slider.id);
 
+      // 组装控制区域
+      sliderControls.appendChild(toggleWrapper);
+      sliderControls.appendChild(deleteBtn);
+
       // 组装滑块
       sliderDiv.appendChild(dragHandle);
-      sliderDiv.appendChild(contentSpan);
-      sliderDiv.appendChild(toggleBtn);
-      sliderDiv.appendChild(deleteBtn);
+      sliderDiv.appendChild(sliderInfo);
+      sliderDiv.appendChild(sliderControls);
 
       return sliderDiv;
     } catch (error) {
@@ -475,9 +503,12 @@ export class RuleEditorUI {
       if (target.classList.contains('rl-slider-toggle')) {
         e.preventDefault();
         this.toggleSliderState(sliderId);
-      } else if (target.classList.contains('rl-slider-delete')) {
+      } else if (target.classList.contains('rl-slider-delete') || target.closest('.rl-slider-delete')) {
         e.preventDefault();
-        this.removeContentTag(sliderId);
+        // 如果点击的是图标，获取父按钮的ID
+        const deleteBtn = target.closest('.rl-slider-delete');
+        const deleteId = deleteBtn ? deleteBtn.getAttribute('data-slider-id') : sliderId;
+        this.removeContentTag(deleteId);
       }
     } catch (error) {
       console.error('滑块点击处理失败:', error);
@@ -595,7 +626,25 @@ export class RuleEditorUI {
       if (slider) {
         slider.enabled = !slider.enabled;
         console.log('🔄 切换滑块状态:', { id: sliderId, content: slider.content, enabled: slider.enabled });
-        this.updateTagsList();
+
+        // 立即更新DOM中的显示
+        const sliderElement = document.querySelector(`[data-slider-id="${sliderId}"]`);
+        if (sliderElement) {
+          // 更新滑块容器的class
+          if (slider.enabled) {
+            sliderElement.classList.remove('disabled');
+            sliderElement.classList.add('enabled');
+          } else {
+            sliderElement.classList.remove('enabled');
+            sliderElement.classList.add('disabled');
+          }
+
+          // 更新状态文本
+          const statusSpan = sliderElement.querySelector('.rl-slider-status');
+          if (statusSpan) {
+            statusSpan.textContent = slider.enabled ? '已启用' : '已禁用';
+          }
+        }
       }
     } catch (error) {
       console.error('切换滑块状态失败:', error);

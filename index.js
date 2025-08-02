@@ -1596,6 +1596,10 @@ jQuery(async () => {
     $('body').append(editorHtml);
     console.log('✅ HTML模板加载完成');
 
+    // 🎯 暴露后端控制器到全局，确保模块能访问
+    window.backendController = backendController;
+    console.log('✅ 后端控制器已暴露到全局');
+
     // 🆕 尝试模块化初始化
     try {
       console.log('🔧 尝试模块化初始化...');
@@ -1629,9 +1633,8 @@ jQuery(async () => {
 
       console.log('✅ 兼容模式初始化完成');
     } else {
-      // 模块化模式仍需要这些函数，但将来会移到模块中
-      setupEventHandlers();
-      setupBackendEventHandlers();
+      console.log('✅ 模块化模式已完成初始化，跳过旧的事件处理器');
+      // 模块化模式下，事件处理器已经在UI模块中设置，无需重复设置
     }
 
     // 🔧 加载设置（两种模式都需要）
