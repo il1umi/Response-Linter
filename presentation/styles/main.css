@@ -433,7 +433,7 @@
   background: var(--SmartThemeBlurTintColor);
   color: var(--SmartThemeBodyColor);
   transition: all 0.2s ease;
-  cursor: move;
+  cursor: default; /* 默认光标，拖拽时通过JS动态设置 */
 }
 
 .rl-content-item:hover {
@@ -453,6 +453,47 @@
   transform: rotate(1deg) scale(1.02);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   z-index: 1000;
+  cursor: grabbing !important; /* 拖拽时强制使用grabbing光标 */
+}
+
+/* 拖拽占位符样式 */
+.rl-drag-placeholder {
+  height: 3px !important;
+  border: none !important;
+  background: var(--SmartThemeQuoteColor) !important;
+  opacity: 0.9 !important;
+  border-radius: 2px !important;
+  transition: all 0.2s ease !important;
+  min-height: 3px !important;
+  max-height: 3px !important;
+  padding: 0 !important;
+  box-shadow: 0 0 6px var(--SmartThemeQuoteColor) !important;
+  position: relative !important;
+  animation: rl-placeholder-glow 2s ease-in-out infinite !important;
+  display: block !important;
+  width: 100% !important;
+  z-index: 999 !important;
+}
+
+/* 占位符发光动画 */
+@keyframes rl-placeholder-glow {
+  0%, 100% {
+    opacity: 0.9;
+    box-shadow: 0 0 6px var(--SmartThemeQuoteColor);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 12px var(--SmartThemeQuoteColor), 0 0 6px var(--SmartThemeQuoteColor);
+  }
+}
+
+/* 拖拽状态下的全局光标管理 */
+body.rl-dragging {
+  cursor: grabbing !important;
+}
+
+body.rl-dragging * {
+  cursor: grabbing !important;
 }
 
 .rl-content-header {
@@ -474,10 +515,12 @@
 .rl-drag-handle:hover {
   color: var(--SmartThemeCheckboxBorderColor);
   background: rgba(255, 255, 255, 0.1);
+  cursor: grab; /* 确保悬停时保持grab光标 */
 }
 
-.rl-drag-handle:active {
-  cursor: grabbing;
+.rl-drag-handle:active,
+.rl-content-item.dragging .rl-drag-handle {
+  cursor: grabbing !important; /* 拖拽时强制使用grabbing光标 */
 }
 
 .rl-content-info {

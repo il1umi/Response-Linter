@@ -241,7 +241,7 @@ export class RuleEditorUI {
   }
 
   /**
-   * 启用拖拽排序功能（优化版本）
+   * 启用拖拽排序功能（性能优化版本）
    */
   enableDragSort() {
     try {
@@ -250,20 +250,46 @@ export class RuleEditorUI {
 
       let draggedElement = null;
       let placeholder = null;
+      let dragOverThrottleId = null;
+      let cachedElements = null;
+      let lastY = -1;
 
       // 创建占位符元素
       const createPlaceholder = () => {
         const div = document.createElement('div');
         div.className = 'rl-content-item rl-drag-placeholder';
-        div.style.cssText = `
-          height: 40px;
-          border: 2px dashed var(--SmartThemeCheckboxBorderColor);
-          background: transparent;
-          margin-bottom: 6px;
-          border-radius: 6px;
-          opacity: 0.5;
-        `;
+
+        // 获取计算后的主题色 - 使用引用色，通常有很好的对比度
+        const computedStyle = getComputedStyle(document.documentElement);
+        const themeColor = computedStyle.getPropertyValue('--SmartThemeQuoteColor').trim() ||
+                          computedStyle.getPropertyValue('--SmartThemeUnderlineColor').trim() ||
+                          '#ff8c00';
+
+        // 使用酒馆主题色
+        div.style.height = '3px';
+        div.style.border = 'none';
+        div.style.background = themeColor;
+        div.style.marginBottom = '6px';
+        div.style.borderRadius = '2px';
+        div.style.opacity = '0.9';
+        div.style.transition = 'all 0.2s ease';
+        div.style.boxShadow = `0 0 6px ${themeColor}`;
+        div.style.minHeight = '3px';
+        div.style.width = '100%';
+        div.style.display = 'block';
+
         return div;
+      };
+
+      // 节流函数
+      const throttle = (func, delay) => {
+        return function(...args) {
+          if (dragOverThrottleId) return;
+          dragOverThrottleId = setTimeout(() => {
+            func.apply(this, args);
+            dragOverThrottleId = null;
+          }, delay);
+        };
       };
 
       // 拖拽开始
@@ -274,9 +300,15 @@ export class RuleEditorUI {
           contentItem.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
 
+          // 缓存可拖拽元素列表
+          cachedElements = [...container.querySelectorAll('.rl-content-item:not(.dragging):not(.rl-drag-placeholder)')];
+
           // 创建并插入占位符
           placeholder = createPlaceholder();
           contentItem.parentNode.insertBefore(placeholder, contentItem.nextSibling);
+
+          // 设置拖拽光标样式
+          document.body.classList.add('rl-dragging');
         }
       });
 
@@ -291,22 +323,65 @@ export class RuleEditorUI {
             placeholder.parentNode.removeChild(placeholder);
           }
 
+          // 清理状态和样式
           draggedElement = null;
           placeholder = null;
+          cachedElements = null;
+          lastY = -1;
+
+          // 清理节流定时器
+          if (dragOverThrottleId) {
+            clearTimeout(dragOverThrottleId);
+            dragOverThrottleId = null;
+          }
+
+          // 恢复默认光标样式
+          document.body.classList.remove('rl-dragging');
+
+          // 强制重置所有相关元素的光标样式
+          setTimeout(() => {
+            document.body.style.cursor = '';
+            if (contentItem) {
+              contentItem.style.cursor = '';
+            }
+            // 清理可能残留的光标样式
+            const allContentItems = container.querySelectorAll('.rl-content-item');
+            allContentItems.forEach(item => {
+              item.style.cursor = '';
+            });
+          }, 50); // 短暂延迟确保拖拽状态完全清理
         }
       });
 
-      // 拖拽悬停（优化版本 - 减少DOM操作）
-      container.addEventListener('dragover', e => {
-        e.preventDefault();
+      // 拖拽悬停（性能优化版本 - 节流 + 缓存）
+      const handleDragOver = throttle((e) => {
         if (!draggedElement || !placeholder) return;
 
-        const afterElement = this.getDragAfterElement(container, e.clientY);
-        if (afterElement === null) {
-          container.appendChild(placeholder);
-        } else {
-          container.insertBefore(placeholder, afterElement);
-        }
+        // 只有Y坐标变化超过阈值时才重新计算
+        if (Math.abs(e.clientY - lastY) < 5) return;
+        lastY = e.clientY;
+
+        const afterElement = this.getDragAfterElementOptimized(cachedElements, e.clientY);
+
+        // 使用requestAnimationFrame优化DOM操作
+        requestAnimationFrame(() => {
+          if (!placeholder || !placeholder.parentNode) return;
+
+          if (afterElement === null) {
+            if (placeholder.parentNode !== container || placeholder.nextSibling !== null) {
+              container.appendChild(placeholder);
+            }
+          } else {
+            if (placeholder.nextSibling !== afterElement) {
+              container.insertBefore(placeholder, afterElement);
+            }
+          }
+        });
+      }, 16); // 约60fps
+
+      container.addEventListener('dragover', e => {
+        e.preventDefault();
+        handleDragOver(e);
       });
 
       // 拖拽放置
@@ -336,6 +411,35 @@ export class RuleEditorUI {
       const draggableElements = [...container.querySelectorAll('.rl-content-item:not(.dragging):not(.rl-drag-placeholder)')];
 
       return draggableElements.reduce(
+        (closest, child) => {
+          const box = child.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+
+          if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+          } else {
+            return closest;
+          }
+        },
+        { offset: Number.NEGATIVE_INFINITY },
+      ).element;
+    } catch (error) {
+      console.error('获取拖拽位置失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取拖拽后的位置元素（性能优化版本 - 使用缓存）
+   * @param {HTMLElement[]} cachedElements - 缓存的可拖拽元素列表
+   * @param {number} y - Y坐标
+   * @returns {HTMLElement} 位置元素
+   */
+  getDragAfterElementOptimized(cachedElements, y) {
+    try {
+      if (!cachedElements || cachedElements.length === 0) return null;
+
+      return cachedElements.reduce(
         (closest, child) => {
           const box = child.getBoundingClientRect();
           const offset = y - box.top - box.height / 2;
