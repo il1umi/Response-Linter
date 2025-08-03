@@ -42,7 +42,12 @@ export class UIModuleManager {
       const { ConfigWizardUI } = await import('./config-wizard-ui.js');
       await ConfigWizardUI.initialize();
 
-      // 第五阶段：完成初始化
+      // 第五阶段：初始化验证功能
+      console.log('🔍 初始化验证功能...');
+      const { ValidationFunctionsUI } = await import('./validation-functions-ui.js');
+      await ValidationFunctionsUI.initialize();
+
+      // 第六阶段：完成初始化
       console.log('✅ 完成UI模块初始化设置...');
       await this.finalizeInitialization();
 
@@ -59,57 +64,31 @@ export class UIModuleManager {
   }
 
   /**
-   * 完成初始化 - 建立模块间依赖关系
+   * 完成初始化设置
+   * @private
    */
   static async finalizeInitialization() {
     try {
+      // 设置模块间的交叉引用和依赖关系
       console.log('🔗 建立模块间依赖关系...');
 
-      // 确保所有模块都已正确初始化
-      const modules = ['UIState', 'RulesManager', 'RuleEditor', 'ConfigWizard'];
-      for (const moduleName of modules) {
-        if (!window[moduleName]) {
-          throw new Error(`模块 ${moduleName} 未正确初始化`);
+      // 确保所有模块都可以访问彼此
+      if (window.ResponseLinter) {
+        // 所有模块现在都应该在 window.ResponseLinter 命名空间下可用
+        const modules = ['UIState', 'RulesManager', 'RuleEditor', 'ConfigWizard', 'ValidationFunctions'];
+        const missingModules = modules.filter(module => !window.ResponseLinter[module]);
+
+        if (missingModules.length > 0) {
+          console.warn('部分模块未正确初始化:', missingModules);
+        } else {
+          console.log('✅ 所有UI模块已成功初始化并建立依赖关系');
         }
       }
 
-      // 设置模块间的引用关系
-      if (window.UIState) {
-        window.UIState.RulesManager = window.RulesManager;
-        window.UIState.RuleEditor = window.RuleEditor;
-        window.UIState.ConfigWizard = window.ConfigWizard;
-      }
-
-      // 设置后端事件处理器（从index.js迁移）
-      this.setupBackendEventHandlers();
-
-      console.log('✅ 模块依赖关系建立完成');
+      console.log('📝 模块初始化完成，准备进行设置加载...');
     } catch (error) {
-      console.error('❌ 完成初始化时出错:', error);
+      console.error('完成初始化时出错:', error);
       throw error;
-    }
-  }
-
-  /**
-   * 设置后端事件处理器
-   */
-  static setupBackendEventHandlers() {
-    try {
-      console.log('🔧 设置后端事件处理器...');
-
-      // 监听消息渲染事件
-      if (typeof eventSource !== 'undefined') {
-        eventSource.on('CHARACTER_MESSAGE_RENDERED', data => {
-          if (window.backendController && window.UIState) {
-            window.backendController.handleMessageRendered(data);
-          }
-        });
-        console.log('✅ 后端事件处理器设置完成');
-      } else {
-        console.warn('⚠️ eventSource未定义，无法设置后端事件');
-      }
-    } catch (error) {
-      console.error('❌ 设置后端事件处理器失败:', error);
     }
   }
 

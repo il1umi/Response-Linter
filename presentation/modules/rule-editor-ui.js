@@ -9,9 +9,6 @@ export class RuleEditorUI {
   constructor() {
     this.currentTags = [];
     this.isInitialized = false;
-    // 新增：滑块组件的增强数据结构
-    this.tagSliders = []; // 存储滑块的详细信息 {content, enabled, id}
-    this.dragState = null; // 拖拽状态管理
   }
 
   /**
@@ -48,13 +45,11 @@ export class RuleEditorUI {
   showAddModal() {
     try {
       this.currentTags = [];
-      this.tagSliders = []; // 清空滑块数据
       $('#rl-editor-title').text('添加新规则');
       $('#rl-rule-form')[0].reset();
       $('#rl-rule-enabled').prop('checked', true);
       this.updateTagsList();
       this.showModal();
-      console.log('➕ 新规则编辑器已打开');
     } catch (error) {
       console.error('显示添加模态框失败:', error);
     }
@@ -76,21 +71,7 @@ export class RuleEditorUI {
       if (window.UIState) {
         window.UIState.currentEditingRule = ruleId;
       }
-
-      // 设置currentTags（向后兼容）
       this.currentTags = [...rule.requiredContent];
-
-      // 重新初始化滑块数据以匹配编辑的规则
-      this.tagSliders = [];
-      rule.requiredContent.forEach((content, index) => {
-        const sliderId = `slider-edit-${Date.now()}-${index}`;
-        this.tagSliders.push({
-          id: sliderId,
-          content: content,
-          enabled: true, // 编辑现有规则时默认都启用
-          order: index,
-        });
-      });
 
       $('#rl-editor-title').text('编辑规则');
       $('#rl-rule-name').val(rule.name);
@@ -109,8 +90,6 @@ export class RuleEditorUI {
       this.toggleCustomStrategy();
       this.togglePositionalStrategy(); // 切换位置感知策略显示
       this.showModal();
-
-      console.log('📝 编辑规则加载完成，滑块数量:', this.tagSliders.length);
     } catch (error) {
       console.error('显示编辑模态框失败:', error);
     }
@@ -138,16 +117,13 @@ export class RuleEditorUI {
         window.UIState.currentEditingRule = null;
       }
       this.currentTags = [];
-      this.tagSliders = []; // 清空滑块数据
-      this.dragState = null; // 清空拖拽状态
-      console.log('❌ 规则编辑器已关闭');
     } catch (error) {
       console.error('隐藏模态框失败:', error);
     }
   }
 
   /**
-   * 添加内容标签（滑块式组件升级版）
+   * 添加内容标签
    */
   addContentTag() {
     try {
@@ -155,22 +131,9 @@ export class RuleEditorUI {
       const content = input.val().trim();
 
       if (content && !this.currentTags.includes(content)) {
-        // 保持向后兼容的数组结构
         this.currentTags.push(content);
-
-        // 新增：创建滑块数据结构
-        const sliderId = `slider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        this.tagSliders.push({
-          id: sliderId,
-          content: content,
-          enabled: true, // 默认启用
-          order: this.tagSliders.length,
-        });
-
         this.updateTagsList();
         input.val('').focus();
-
-        console.log('📝 添加滑块:', { content, id: sliderId });
       }
     } catch (error) {
       console.error('添加内容标签失败:', error);
@@ -178,32 +141,12 @@ export class RuleEditorUI {
   }
 
   /**
-   * 移除内容标签（滑块式组件升级版）
-   * @param {string} contentOrId - 要移除的内容或滑块ID
+   * 移除内容标签
+   * @param {string} content - 要移除的内容
    */
-  removeContentTag(contentOrId) {
+  removeContentTag(content) {
     try {
-      // 兼容旧的content方式和新的ID方式
-      let targetSlider = null;
-      let targetContent = contentOrId;
-
-      // 尝试通过ID查找
-      targetSlider = this.tagSliders.find(slider => slider.id === contentOrId);
-      if (targetSlider) {
-        targetContent = targetSlider.content;
-      } else {
-        // 通过内容查找
-        targetSlider = this.tagSliders.find(slider => slider.content === contentOrId);
-      }
-
-      if (targetSlider) {
-        // 从滑块数组中移除
-        this.tagSliders = this.tagSliders.filter(slider => slider.id !== targetSlider.id);
-        console.log('🗑️ 移除滑块:', { content: targetContent, id: targetSlider.id });
-      }
-
-      // 保持向后兼容：从旧数组中移除
-      this.currentTags = this.currentTags.filter(tag => tag !== targetContent);
+      this.currentTags = this.currentTags.filter(tag => tag !== content);
       this.updateTagsList();
     } catch (error) {
       console.error('移除内容标签失败:', error);
@@ -211,334 +154,186 @@ export class RuleEditorUI {
   }
 
   /**
-   * 更新标签列表显示（滑块式组件重构版）
-   * 性能优化：减少DOM操作，优化拖拽体验
+   * 更新内容滑块列表显示
    */
   updateTagsList() {
     try {
       const container = $('#rl-required-content-list');
-
-      // 性能优化：批量DOM更新，减少重绘
-      const fragment = document.createDocumentFragment();
-
-      // 确保滑块数据与currentTags同步（向后兼容）
-      this.syncTagSlidersWithCurrentTags();
-
-      // 按order排序
-      const sortedSliders = [...this.tagSliders].sort((a, b) => a.order - b.order);
-
-      sortedSliders.forEach((slider, index) => {
-        const sliderElement = this.createSliderElement(slider, index);
-        fragment.appendChild(sliderElement);
-      });
-
-      // 一次性更新DOM
       container.empty();
-      container.append(fragment);
 
-      // 只绑定一次拖拽事件（性能优化）
-      this.initializeEnhancedDragSort();
+      if (this.currentTags.length === 0) {
+        return; // 容器为空时显示占位符文本
+      }
 
-      console.log('🎛️ 滑块列表已更新，共', sortedSliders.length, '个滑块');
-    } catch (error) {
-      console.error('更新标签列表失败:', error);
-    }
-  }
-
-  /**
-   * 同步滑块数据与currentTags（向后兼容）
-   */
-  syncTagSlidersWithCurrentTags() {
-    try {
-      // 处理新增的currentTags（可能来自编辑现有规则）
       this.currentTags.forEach((content, index) => {
-        const existingSlider = this.tagSliders.find(s => s.content === content);
-        if (!existingSlider) {
-          const sliderId = `slider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          this.tagSliders.push({
-            id: sliderId,
-            content: content,
-            enabled: true,
-            order: index,
-          });
-        }
+        this.createContentSlider(content, index);
       });
 
-      // 处理被删除的currentTags
-      this.tagSliders = this.tagSliders.filter(slider => this.currentTags.includes(slider.content));
-
-      // 更新currentTags顺序以匹配滑块order
-      const sortedSliders = [...this.tagSliders].sort((a, b) => a.order - b.order);
-      this.currentTags = sortedSliders.map(slider => slider.content);
+      // 启用拖拽排序功能
+      this.enableDragSort();
     } catch (error) {
-      console.error('同步滑块数据失败:', error);
+      console.error('更新内容滑块列表失败:', error);
     }
   }
 
   /**
-   * 创建单个滑块元素
-   * @param {Object} slider - 滑块数据
-   * @param {number} index - 索引
-   * @returns {HTMLElement} 滑块DOM元素
+   * 创建内容滑块项
+   * @param {string} content - 内容文本
+   * @param {number} index - 索引位置
    */
-  createSliderElement(slider, index) {
+  createContentSlider(content, index) {
     try {
-      // 创建滑块容器
-      const sliderDiv = document.createElement('div');
-      sliderDiv.className = `rl-content-slider ${slider.enabled ? 'enabled' : 'disabled'}`;
-      sliderDiv.setAttribute('data-slider-id', slider.id);
-      sliderDiv.setAttribute('data-content', slider.content);
-      sliderDiv.setAttribute('draggable', 'true');
-      sliderDiv.setAttribute('data-order', slider.order);
+      const template = document.getElementById('rl-content-slider-template');
+      if (!template) {
+        console.error('找不到内容滑块模板');
+        return;
+      }
 
-      // 拖拽手柄
-      const dragHandle = document.createElement('div');
-      dragHandle.className = 'rl-slider-handle';
-      dragHandle.innerHTML = '⋮⋮';
-      dragHandle.title = '拖拽排序';
+      const clone = template.content.cloneNode(true);
+      const slider = clone.querySelector('.rl-content-item');
 
-      // 滑块信息区域（模仿rl-rule-info结构）
-      const sliderInfo = document.createElement('div');
-      sliderInfo.className = 'rl-slider-info';
+      // 设置数据属性
+      slider.setAttribute('data-content', content);
+      slider.setAttribute('data-index', index);
 
-      // 内容显示（模仿rl-rule-name）
-      const contentSpan = document.createElement('span');
-      contentSpan.className = 'rl-slider-content';
-      contentSpan.textContent = slider.content;
+      // 设置内容文本
+      const contentText = clone.querySelector('.rl-content-text');
+      contentText.textContent = content;
 
-      // 状态指示（模仿rl-rule-description）
-      const statusSpan = document.createElement('small');
-      statusSpan.className = 'rl-slider-status';
-      statusSpan.textContent = slider.enabled ? '已启用' : '已禁用';
+      // 绑定删除按钮事件
+      const deleteBtn = clone.querySelector('.rl-delete-content');
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeContentTag(content);
+      });
 
-      // 组装信息区域
-      sliderInfo.appendChild(contentSpan);
-      sliderInfo.appendChild(statusSpan);
+      // 绑定开关事件
+      const toggle = clone.querySelector('.rl-content-enabled');
+      toggle.addEventListener('change', (e) => {
+        this.toggleContentItem(content, e.target.checked);
+      });
 
-      // 滑块控制区域（模仿rl-rule-controls）
-      const sliderControls = document.createElement('div');
-      sliderControls.className = 'rl-slider-controls';
-
-      // 开关按钮（模仿酒馆toggle样式）
-      const toggleWrapper = document.createElement('label');
-      toggleWrapper.className = 'rl-slider-toggle-wrapper';
-
-      const toggleInput = document.createElement('input');
-      toggleInput.type = 'checkbox';
-      toggleInput.className = 'rl-slider-toggle';
-      toggleInput.checked = slider.enabled;
-      toggleInput.setAttribute('data-slider-id', slider.id);
-
-      const toggleTrack = document.createElement('span');
-      toggleTrack.className = 'rl-slider-toggle-track';
-
-      toggleWrapper.appendChild(toggleInput);
-      toggleWrapper.appendChild(toggleTrack);
-
-      // 删除按钮
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'rl-slider-delete';
-      deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-      deleteBtn.title = '删除';
-      deleteBtn.setAttribute('data-slider-id', slider.id);
-
-      // 组装控制区域
-      sliderControls.appendChild(toggleWrapper);
-      sliderControls.appendChild(deleteBtn);
-
-      // 组装滑块
-      sliderDiv.appendChild(dragHandle);
-      sliderDiv.appendChild(sliderInfo);
-      sliderDiv.appendChild(sliderControls);
-
-      return sliderDiv;
+      // 添加到容器
+      $('#rl-required-content-list').append(slider);
     } catch (error) {
-      console.error('创建滑块元素失败:', error);
-      return document.createElement('div'); // 返回空div避免破坏
+      console.error('创建内容滑块失败:', error);
     }
   }
 
   /**
-   * 初始化增强的拖拽排序功能（性能优化版）
-   * 使用事件委托和CSS Transform提升性能
+   * 切换内容项的启用状态
+   * @param {string} content - 内容文本
+   * @param {boolean} enabled - 是否启用
    */
-  initializeEnhancedDragSort() {
+  toggleContentItem(content, enabled) {
+    try {
+      const slider = $(`.rl-content-item[data-content="${content}"]`);
+      if (enabled) {
+        slider.removeClass('disabled');
+      } else {
+        slider.addClass('disabled');
+      }
+
+      console.log(`内容项 "${content}" ${enabled ? '已启用' : '已禁用'}`);
+    } catch (error) {
+      console.error('切换内容项状态失败:', error);
+    }
+  }
+
+  /**
+   * 启用拖拽排序功能（优化版本）
+   */
+  enableDragSort() {
     try {
       const container = $('#rl-required-content-list')[0];
       if (!container) return;
 
-      // 移除旧的事件监听器，避免重复绑定
-      this.cleanupDragEvents(container);
+      let draggedElement = null;
+      let placeholder = null;
 
-      // 使用事件委托，性能更好
-      container.addEventListener('dragstart', this.handleDragStart.bind(this));
-      container.addEventListener('dragend', this.handleDragEnd.bind(this));
-      container.addEventListener('dragover', this.handleDragOver.bind(this));
-      container.addEventListener('drop', this.handleDrop.bind(this));
-
-      // 点击事件委托（开关和删除）
-      container.addEventListener('click', this.handleSliderClick.bind(this));
-
-      console.log('🎯 增强拖拽系统已初始化');
-    } catch (error) {
-      console.error('初始化增强拖拽失败:', error);
-    }
-  }
-
-  /**
-   * 清理拖拽事件（避免重复绑定）
-   */
-  cleanupDragEvents(container) {
-    try {
-      const events = ['dragstart', 'dragend', 'dragover', 'drop', 'click'];
-      events.forEach(event => {
-        container.removeEventListener(event, this[`handle${event.charAt(0).toUpperCase() + event.slice(1)}`]);
-      });
-    } catch (error) {
-      console.error('清理拖拽事件失败:', error);
-    }
-  }
-
-  /**
-   * 处理拖拽开始
-   */
-  handleDragStart(e) {
-    try {
-      const sliderElement = e.target.closest('.rl-content-slider');
-      if (!sliderElement) return;
-
-      this.dragState = {
-        draggedElement: sliderElement,
-        draggedId: sliderElement.getAttribute('data-slider-id'),
-        startY: e.clientY,
-        placeholder: null,
+      // 创建占位符元素
+      const createPlaceholder = () => {
+        const div = document.createElement('div');
+        div.className = 'rl-content-item rl-drag-placeholder';
+        div.style.cssText = `
+          height: 40px;
+          border: 2px dashed var(--SmartThemeCheckboxBorderColor);
+          background: transparent;
+          margin-bottom: 6px;
+          border-radius: 6px;
+          opacity: 0.5;
+        `;
+        return div;
       };
 
-      // 视觉反馈
-      sliderElement.classList.add('rl-dragging');
-      sliderElement.style.opacity = '0.6';
+      // 拖拽开始
+      container.addEventListener('dragstart', e => {
+        const contentItem = e.target.closest('.rl-content-item');
+        if (contentItem) {
+          draggedElement = contentItem;
+          contentItem.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
 
-      // 创建拖拽占位符
-      this.createDragPlaceholder();
+          // 创建并插入占位符
+          placeholder = createPlaceholder();
+          contentItem.parentNode.insertBefore(placeholder, contentItem.nextSibling);
+        }
+      });
 
-      e.dataTransfer.effectAllowed = 'move';
-      console.log('🔄 开始拖拽滑块:', this.dragState.draggedId);
-    } catch (error) {
-      console.error('拖拽开始处理失败:', error);
-    }
-  }
+      // 拖拽结束
+      container.addEventListener('dragend', e => {
+        const contentItem = e.target.closest('.rl-content-item');
+        if (contentItem) {
+          contentItem.classList.remove('dragging');
 
-  /**
-   * 处理拖拽结束
-   */
-  handleDragEnd(e) {
-    try {
-      if (!this.dragState) return;
+          // 移除占位符
+          if (placeholder && placeholder.parentNode) {
+            placeholder.parentNode.removeChild(placeholder);
+          }
 
-      // 清理视觉效果
-      this.dragState.draggedElement.classList.remove('rl-dragging');
-      this.dragState.draggedElement.style.opacity = '';
+          draggedElement = null;
+          placeholder = null;
+        }
+      });
 
-      // 移除占位符
-      if (this.dragState.placeholder) {
-        this.dragState.placeholder.remove();
-      }
-
-      console.log('✅ 拖拽结束:', this.dragState.draggedId);
-      this.dragState = null;
-    } catch (error) {
-      console.error('拖拽结束处理失败:', error);
-    }
-  }
-
-  /**
-   * 处理拖拽悬停（性能优化：使用transform）
-   */
-  handleDragOver(e) {
-    try {
-      e.preventDefault();
-      if (!this.dragState) return;
-
-      const container = e.currentTarget;
-      const afterElement = this.getOptimizedDragAfterElement(container, e.clientY);
-
-      // 使用占位符而非直接移动元素（性能优化）
-      if (afterElement == null) {
-        container.appendChild(this.dragState.placeholder);
-      } else {
-        container.insertBefore(this.dragState.placeholder, afterElement);
-      }
-    } catch (error) {
-      console.error('拖拽悬停处理失败:', error);
-    }
-  }
-
-  /**
-   * 处理拖拽放置
-   */
-  handleDrop(e) {
-    try {
-      e.preventDefault();
-      if (!this.dragState) return;
-
-      // 更新滑块顺序
-      this.updateSlidersOrderFromDOM();
-      console.log('📋 滑块顺序已更新');
-    } catch (error) {
-      console.error('拖拽放置处理失败:', error);
-    }
-  }
-
-  /**
-   * 处理滑块点击事件（开关和删除）
-   */
-  handleSliderClick(e) {
-    try {
-      const target = e.target;
-      const sliderId = target.getAttribute('data-slider-id');
-
-      if (!sliderId) return;
-
-      if (target.classList.contains('rl-slider-toggle')) {
+      // 拖拽悬停（优化版本 - 减少DOM操作）
+      container.addEventListener('dragover', e => {
         e.preventDefault();
-        this.toggleSliderState(sliderId);
-      } else if (target.classList.contains('rl-slider-delete') || target.closest('.rl-slider-delete')) {
+        if (!draggedElement || !placeholder) return;
+
+        const afterElement = this.getDragAfterElement(container, e.clientY);
+        if (afterElement === null) {
+          container.appendChild(placeholder);
+        } else {
+          container.insertBefore(placeholder, afterElement);
+        }
+      });
+
+      // 拖拽放置
+      container.addEventListener('drop', e => {
         e.preventDefault();
-        // 如果点击的是图标，获取父按钮的ID
-        const deleteBtn = target.closest('.rl-slider-delete');
-        const deleteId = deleteBtn ? deleteBtn.getAttribute('data-slider-id') : sliderId;
-        this.removeContentTag(deleteId);
-      }
+        if (!draggedElement || !placeholder) return;
+
+        // 将拖拽元素移动到占位符位置
+        placeholder.parentNode.insertBefore(draggedElement, placeholder);
+
+        // 更新数据顺序
+        this.updateTagsOrderFromDOM();
+      });
     } catch (error) {
-      console.error('滑块点击处理失败:', error);
+      console.error('启用拖拽排序失败:', error);
     }
   }
 
   /**
-   * 创建拖拽占位符
+   * 获取拖拽后的位置元素（优化版本）
+   * @param {HTMLElement} container - 容器元素
+   * @param {number} y - Y坐标
+   * @returns {HTMLElement} 位置元素
    */
-  createDragPlaceholder() {
+  getDragAfterElement(container, y) {
     try {
-      if (!this.dragState) return;
-
-      const placeholder = document.createElement('div');
-      placeholder.className = 'rl-drag-placeholder';
-      placeholder.style.height = this.dragState.draggedElement.offsetHeight + 'px';
-      placeholder.innerHTML = '<div class="rl-placeholder-content">放置到此处...</div>';
-
-      this.dragState.placeholder = placeholder;
-    } catch (error) {
-      console.error('创建拖拽占位符失败:', error);
-    }
-  }
-
-  /**
-   * 优化的拖拽位置计算
-   */
-  getOptimizedDragAfterElement(container, y) {
-    try {
-      const draggableElements = [...container.querySelectorAll('.rl-content-slider:not(.rl-dragging)')];
+      const draggableElements = [...container.querySelectorAll('.rl-content-item:not(.dragging):not(.rl-drag-placeholder)')];
 
       return draggableElements.reduce(
         (closest, child) => {
@@ -554,33 +349,30 @@ export class RuleEditorUI {
         { offset: Number.NEGATIVE_INFINITY },
       ).element;
     } catch (error) {
-      console.error('拖拽位置计算失败:', error);
+      console.error('获取拖拽位置失败:', error);
       return null;
     }
   }
 
   /**
-   * 从DOM更新滑块顺序
+   * 从DOM更新内容项顺序
    */
-  updateSlidersOrderFromDOM() {
+  updateTagsOrderFromDOM() {
     try {
-      const sliderElements = $('#rl-required-content-list .rl-content-slider');
+      const contentItems = $('#rl-required-content-list .rl-content-item:not(.rl-drag-placeholder)');
       const newOrder = [];
 
-      sliderElements.each((index, element) => {
-        const sliderId = element.getAttribute('data-slider-id');
-        const slider = this.tagSliders.find(s => s.id === sliderId);
-        if (slider) {
-          slider.order = index;
-          newOrder.push(slider.content);
+      contentItems.each((index, element) => {
+        const content = $(element).attr('data-content');
+        if (content) {
+          newOrder.push(content);
         }
       });
 
-      // 同步到向后兼容的currentTags
       this.currentTags = newOrder;
-      console.log('📊 滑块顺序已同步:', newOrder);
+      console.log('内容项顺序已更新:', newOrder);
     } catch (error) {
-      console.error('更新滑块顺序失败:', error);
+      console.error('更新内容项顺序失败:', error);
     }
   }
 
@@ -614,41 +406,6 @@ export class RuleEditorUI {
   togglePositionalStrategy() {
     // 此方法已合并到toggleCustomStrategy中
     // 保留以避免破坏现有调用
-  }
-
-  /**
-   * 切换滑块启用状态
-   * @param {string} sliderId - 滑块ID
-   */
-  toggleSliderState(sliderId) {
-    try {
-      const slider = this.tagSliders.find(s => s.id === sliderId);
-      if (slider) {
-        slider.enabled = !slider.enabled;
-        console.log('🔄 切换滑块状态:', { id: sliderId, content: slider.content, enabled: slider.enabled });
-
-        // 立即更新DOM中的显示
-        const sliderElement = document.querySelector(`[data-slider-id="${sliderId}"]`);
-        if (sliderElement) {
-          // 更新滑块容器的class
-          if (slider.enabled) {
-            sliderElement.classList.remove('disabled');
-            sliderElement.classList.add('enabled');
-          } else {
-            sliderElement.classList.remove('enabled');
-            sliderElement.classList.add('disabled');
-          }
-
-          // 更新状态文本
-          const statusSpan = sliderElement.querySelector('.rl-slider-status');
-          if (statusSpan) {
-            statusSpan.textContent = slider.enabled ? '已启用' : '已禁用';
-          }
-        }
-      }
-    } catch (error) {
-      console.error('切换滑块状态失败:', error);
-    }
   }
 
   /**

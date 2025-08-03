@@ -1558,9 +1558,27 @@ function setupEventHandlers() {
     }
   });
 
+  // 保留旧标签系统的兼容性
   $(document).on('click', '.rl-remove-tag', function () {
     const content = $(this).data('content');
     RuleEditor.removeContentTag(content);
+  });
+
+  // 新滑块系统的事件绑定（由模块内部处理，这里保留作为备用）
+  $(document).on('click', '.rl-delete-content', function (e) {
+    e.stopPropagation();
+    const content = $(this).closest('.rl-content-item').data('content');
+    if (content && window.ResponseLinter?.RuleEditor) {
+      window.ResponseLinter.RuleEditor.removeContentTag(content);
+    }
+  });
+
+  $(document).on('change', '.rl-content-enabled', function (e) {
+    const content = $(this).closest('.rl-content-item').data('content');
+    const enabled = $(this).prop('checked');
+    if (content && window.ResponseLinter?.RuleEditor) {
+      window.ResponseLinter.RuleEditor.toggleContentItem(content, enabled);
+    }
   });
 
   // 点击外部关闭模态框
@@ -1596,10 +1614,6 @@ jQuery(async () => {
     $('body').append(editorHtml);
     console.log('✅ HTML模板加载完成');
 
-    // 🎯 暴露后端控制器到全局，确保模块能访问
-    window.backendController = backendController;
-    console.log('✅ 后端控制器已暴露到全局');
-
     // 🆕 尝试模块化初始化
     try {
       console.log('🔧 尝试模块化初始化...');
@@ -1633,8 +1647,9 @@ jQuery(async () => {
 
       console.log('✅ 兼容模式初始化完成');
     } else {
-      console.log('✅ 模块化模式已完成初始化，跳过旧的事件处理器');
-      // 模块化模式下，事件处理器已经在UI模块中设置，无需重复设置
+      // 模块化模式仍需要这些函数，但将来会移到模块中
+      setupEventHandlers();
+      setupBackendEventHandlers();
     }
 
     // 🔧 加载设置（两种模式都需要）

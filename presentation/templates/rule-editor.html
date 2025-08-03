@@ -41,17 +41,16 @@
 
         <div class="rl-form-group">
           <label>必需内容 <span class="required">*</span></label>
+          <div id="rl-required-content-list" class="rl-content-slider-container">
+            <!-- 动态内容滑块将在此添加 -->
+          </div>
           <div class="rl-add-content-group">
             <input id="rl-new-content" type="text" placeholder="添加必需的标签或文本..." />
             <button id="rl-add-content" type="button" class="rl-add-btn">
               <i class="fa-solid fa-plus"></i>
             </button>
           </div>
-          <small class="rl-help-text"> 添加必须在AI回复中出现的标签、文本或模式。<strong>顺序很重要！</strong> </small>
-          <!-- 滑块列表区域 - 无边框容器 -->
-          <div id="rl-required-content-list" class="rl-sliders-container">
-            <!-- 动态滑块项目将在此添加 -->
-          </div>
+          <small class="rl-help-text">添加必须在AI回复中出现的标签、文本或模式。<strong>顺序很重要！</strong></small>
         </div>
 
         <div class="rl-form-group">
@@ -138,6 +137,29 @@
     <div class="rl-rule-content">
       <div class="rl-rule-tags">
         <!-- 必需内容标签将在此显示 -->
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- 内容滑块模板 -->
+<template id="rl-content-slider-template">
+  <div class="rl-content-item" data-content="" data-index="" draggable="true">
+    <div class="rl-content-header">
+      <div class="rl-drag-handle" title="拖拽排序">
+        <i class="fa-solid fa-grip-vertical"></i>
+      </div>
+      <div class="rl-content-info">
+        <span class="rl-content-text"></span>
+      </div>
+      <div class="rl-content-controls">
+        <label class="rl-content-toggle" title="启用/禁用此内容项">
+          <input type="checkbox" class="rl-content-enabled" checked />
+          <span class="rl-toggle-slider"></span>
+        </label>
+        <button class="rl-delete-content" type="button" title="删除此内容项">
+          <i class="fa-solid fa-trash"></i>
+        </button>
       </div>
     </div>
   </div>
