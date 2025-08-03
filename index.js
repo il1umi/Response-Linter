@@ -40,121 +40,25 @@ const defaultSettings = {
   },
 };
 
-// UI状态管理
-const UIState = {
-  isExtensionEnabled: false,
-  isAutoFixEnabled: false,
-  rules: [],
-  currentEditingRule: null,
-  isGuideExpanded: false, // 新增：使用指引展开状态
-
-  // 获取最新AI消息的ID
-  getLatestAIMessageId() {
-    try {
-      // 使用jQuery查找最后一个AI消息
-      const aiMessages = $('#chat .mes').filter(function () {
-        return !$(this).hasClass('user_mes');
-      });
-
-      if (aiMessages.length > 0) {
-        const latestMessage = aiMessages.last();
-        return latestMessage.attr('mesid') || null;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('获取最新AI消息ID失败:', error);
-      return null;
-    }
-  },
-
-  // 更新状态指示器
-  updateStatusIndicator() {
-    const indicator = $('#rl-status-indicator');
-    const backendStatus = backendController.getStatus();
-
-    if (!this.isExtensionEnabled) {
-      indicator.removeClass('active warning error').addClass('disabled');
-      indicator.attr('title', '扩展已禁用');
-    } else if (!backendStatus.isRunning) {
-      indicator.removeClass('active disabled error').addClass('warning');
-      indicator.attr('title', '后端服务未运行');
-    } else if (this.rules.filter(r => r.enabled).length === 0) {
-      indicator.removeClass('active disabled error').addClass('warning');
-      indicator.attr('title', '无活跃规则');
-    } else {
-      indicator.removeClass('disabled warning error').addClass('active');
-      indicator.attr('title', '扩展运行中');
-    }
-
-    // 智能指引：如果无规则且指引未展开，自动展开
-    this.checkAutoExpandGuide();
-  },
-
-  // 检查是否需要自动展开指引
-  checkAutoExpandGuide() {
-    const hasRules = this.rules.length > 0;
-    const isEnabled = this.isExtensionEnabled;
-
-    // 如果扩展已启用但没有规则，且指引当前收起，则自动展开
-    if (isEnabled && !hasRules && !this.isGuideExpanded) {
-      this.toggleGuide(true);
-      toastr.info('建议先添加验证规则来开始使用扩展', '响应检查器', { timeOut: 3000 });
-    }
-  },
-
-  // 切换使用指引展开状态
-  toggleGuide(forceExpand = null) {
-    const content = $('#rl-guide-content');
-    const toggle = $('#rl-toggle-guide');
-
-    if (forceExpand !== null) {
-      this.isGuideExpanded = forceExpand;
-    } else {
-      this.isGuideExpanded = !this.isGuideExpanded;
-    }
-
-    if (this.isGuideExpanded) {
-      content.slideDown(300);
-      toggle.addClass('expanded');
-    } else {
-      content.slideUp(300);
-      toggle.removeClass('expanded');
-    }
-
-    // 保存指引展开状态到本地存储
-    localStorage.setItem('rl-guide-expanded', this.isGuideExpanded);
-  },
-
-  // 加载指引展开状态
-  loadGuideState() {
-    const savedState = localStorage.getItem('rl-guide-expanded');
-    if (savedState !== null) {
-      this.isGuideExpanded = savedState === 'true';
-      if (this.isGuideExpanded) {
-        $('#rl-guide-content').show();
-        $('#rl-toggle-guide').addClass('expanded');
-      }
-    }
-  },
-
-  // 更新统计显示
-  updateStatistics() {
-    const stats = backendController.getStatistics();
-    const fixStats = backendController.getFixStatistics();
-
-    $('#rl-stat-validations').text(stats.totalValidations);
-    $('#rl-stat-fixes').text(stats.successfulFixes);
-    $('#rl-stat-fix-attempts').text(stats.totalFixAttempts);
-    $('#rl-stat-cancellations').text(stats.userCancellations);
-    $('#rl-stat-fix-success').text(fixStats.successRate + '%');
-    $('#rl-stat-success').text(stats.successRate + '%');
-
-    // 更新手动修复按钮状态
-    const latestMessageId = this.getLatestAIMessageId();
-    $('#rl-manual-fix').prop('disabled', !latestMessageId || !this.isExtensionEnabled);
-  },
-};
+// UIState对象已移除 - 功能已迁移到UIStateManager模块
+// 通过模块化系统，UIState现在通过window.UIState全局访问
+//
+// 原始对象定义范围: 44-65行 (22行代码)
+// 迁移位置: presentation/modules/ui-state-manager.js
+// 全局访问: window.UIState (向后兼容)
+// 模块访问: window.ResponseLinter.UIState
+//
+// 主要功能:
+// - 状态属性: isExtensionEnabled, isAutoFixEnabled, rules, currentEditingRule, isGuideExpanded
+// - getLatestAIMessageId() - 获取最新AI消息ID
+// - updateStatusIndicator() - 更新状态指示器
+// - updateStatistics() - 更新统计显示
+// - toggleGuide() / loadGuideState() - 指引控制
+// - checkAutoExpandGuide() - 自动展开检查
+//
+// 循环依赖解决:
+// 原循环: UIState.rules ↔ RulesManager ↔ RuleEditor
+// 现状态: 通过模块系统统一管理，避免循环依赖
 
 // 真实验证和通知功能
 // ValidationFunctions对象已移除 - 功能已迁移到ValidationFunctionsUI模块
@@ -248,262 +152,47 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// 规则管理器
-const RulesManager = {
-  // 渲染规则列表
-  renderRulesList() {
-    const container = $('#rl-rules-list');
-    container.empty();
+// RulesManager对象已移除 - 功能已迁移到RulesManagerUI模块
+// 通过模块化系统，RulesManager现在通过window.RulesManager全局访问
+//
+// 原始对象定义范围: 252-418行 (167行代码)
+// 迁移位置: presentation/modules/rules-manager-ui.js
+// 全局访问: window.RulesManager (向后兼容)
+// 模块访问: window.ResponseLinter.RulesManager
+//
+// 主要功能:
+// - renderRulesList() - 渲染规则列表
+// - createRuleElement() - 创建规则元素
+// - addRule() / editRule() / deleteRule() - 规则CRUD操作
+// - toggleRule() - 规则状态切换
+// - saveRules() - 规则持久化
+// - exportRules() / importRules() - 规则导入导出
 
-    UIState.rules.forEach(rule => {
-      const ruleElement = this.createRuleElement(rule);
-      container.append(ruleElement);
-    });
-
-    UIState.updateStatusIndicator();
-  },
-
-  // 从模板创建规则元素
-  createRuleElement(rule) {
-    const template = $('#rl-rule-item-template').prop('content');
-    const element = $(template.cloneNode(true));
-
-    element.find('.rl-rule-item').attr('data-rule-id', rule.id);
-    element.find('.rl-rule-name').text(rule.name);
-    element.find('.rl-rule-description').text(rule.description || '无描述');
-    element.find('.rl-rule-enabled').prop('checked', rule.enabled);
-
-    // 添加必需内容标签
-    const tagsContainer = element.find('.rl-rule-tags');
-    rule.requiredContent.forEach(content => {
-      const tag = $(`<span class="rl-tag">${content}</span>`);
-      tagsContainer.append(tag);
-    });
-
-    // 应用禁用状态
-    if (!rule.enabled) {
-      element.find('.rl-rule-item').addClass('disabled');
-    }
-
-    return element;
-  },
-
-  // 添加新规则
-  addRule(ruleData) {
-    const newRule = {
-      id: 'rule_' + Date.now(),
-      name: ruleData.name,
-      description: ruleData.description,
-      enabled: ruleData.enabled,
-      requiredContent: ruleData.requiredContent,
-      fixStrategy: ruleData.fixStrategy,
-      createdAt: new Date().toISOString(),
-    };
-
-    UIState.rules.push(newRule);
-    this.saveRules();
-    this.renderRulesList();
-
-    toastr.success(`规则"${newRule.name}"添加成功！`, '响应检查器');
-  },
-
-  // 编辑现有规则
-  editRule(ruleId, ruleData) {
-    const ruleIndex = UIState.rules.findIndex(r => r.id === ruleId);
-    if (ruleIndex !== -1) {
-      UIState.rules[ruleIndex] = {
-        ...UIState.rules[ruleIndex],
-        name: ruleData.name,
-        description: ruleData.description,
-        enabled: ruleData.enabled,
-        requiredContent: ruleData.requiredContent,
-        fixStrategy: ruleData.fixStrategy,
-        positionalOptions: ruleData.positionalOptions, // 新增：保存位置感知选项
-        updatedAt: new Date().toISOString(),
-      };
-
-      this.saveRules();
-      this.renderRulesList();
-
-      toastr.success(`规则"${ruleData.name}"更新成功！`, '响应检查器');
-    }
-  },
-
-  // 删除规则
-  deleteRule(ruleId) {
-    const rule = UIState.rules.find(r => r.id === ruleId);
-    if (rule) {
-      UIState.rules = UIState.rules.filter(r => r.id !== ruleId);
-      this.saveRules();
-      this.renderRulesList();
-
-      toastr.info(`规则"${rule.name}"已删除`, '响应检查器');
-    }
-  },
-
-  // 切换规则启用状态
-  toggleRule(ruleId, enabled) {
-    const rule = UIState.rules.find(r => r.id === ruleId);
-    if (rule) {
-      rule.enabled = enabled;
-      this.saveRules();
-      this.renderRulesList();
-    }
-  },
-
-  // 保存规则到扩展设置
-  saveRules() {
-    extension_settings[extensionName].rules = UIState.rules;
-
-    // 同步更新后端规则
-    backendController.updateSettings(extension_settings[extensionName]);
-
-    saveSettingsDebounced();
-  },
-
-  // 导出规则为JSON文件
-  exportRules() {
-    const dataStr = JSON.stringify(UIState.rules, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'response-linter-rules.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toastr.success('规则导出成功！', '响应检查器');
-  },
-
-  // 从JSON文件导入规则
-  importRules() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-
-    input.onchange = event => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = e => {
-        try {
-          const importedRules = JSON.parse(e.target.result);
-          if (Array.isArray(importedRules)) {
-            // 分配新ID以避免冲突
-            importedRules.forEach(rule => {
-              rule.id = Date.now() + Math.random();
-              UIState.rules.push(rule);
-            });
-
-            this.saveRules();
-            this.renderRulesList();
-            toastr.success(`成功导入 ${importedRules.length} 条规则！`, '响应检查器');
-          } else {
-            throw new Error('无效的规则文件格式');
-          }
-        } catch (error) {
-          console.error('导入规则失败:', error);
-          toastr.error('导入失败：' + error.message, '响应检查器');
-        }
-      };
-
-      reader.readAsText(file);
-    };
-
-    input.click();
-  },
-
-  // 新增：添加预设规则模板
-  addTemplate(templateType) {
-    const templates = {
-      thinking: {
-        name: '思维链验证',
-        description: '验证AI回复包含正确的思考过程和内容格式',
-        requiredContent: ['<thinking>', '</thinking>', '<content>', '</content>'],
-        fixStrategy: 'positional',
-        positionalOptions: { doubleNewline: true },
-        enabled: true,
-      },
-      code: {
-        name: '代码块验证',
-        description: '验证代码回复包含正确的代码块标记',
-        requiredContent: ['```', '```'],
-        fixStrategy: 'add-missing-tags',
-        enabled: true,
-      },
-      qa: {
-        name: '问答格式验证',
-        description: '验证问答回复包含问题和答案部分',
-        requiredContent: ['## 问题', '## 答案'],
-        fixStrategy: 'positional',
-        positionalOptions: { doubleNewline: true },
-        enabled: true,
-      },
-    };
-
-    const template = templates[templateType];
-    if (!template) {
-      toastr.error('未知的模板类型', '响应检查器');
-      return;
-    }
-
-    // 检查是否已存在相同名称的规则
-    const existingRule = UIState.rules.find(rule => rule.name === template.name);
-    if (existingRule) {
-      toastr.warning('该模板规则已存在', '响应检查器');
-      return;
-    }
-
-    // 创建新规则
-    const newRule = {
-      id: Date.now() + Math.random(),
-      ...template,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    UIState.rules.push(newRule);
-    this.saveRules();
-    this.renderRulesList();
-
-    toastr.success(`成功添加"${template.name}"模板规则！`, '响应检查器');
-  },
-};
+// RulesManager的addTemplate方法已移除
+// 功能已完整迁移到RulesManagerUI模块中
 
 // RuleEditor对象已移除 - 功能已迁移到RuleEditorUI模块
 // 通过模块化系统，RuleEditor现在通过window.RuleEditor全局访问
 //
-// 原始对象定义范围: 478-704行 (227行代码)
+// 原始对象定义范围: 271-474行 (204行代码)
 // 迁移位置: presentation/modules/rule-editor-ui.js
 // 全局访问: window.RuleEditor (向后兼容)
 // 模块访问: window.ResponseLinter.RuleEditor
 //
 // 主要功能:
-// - showAddModal() / showEditModal() - 显示添加/编辑规则模态框
-// - hideModal() / showModal() - 模态框显示控制
-// - addContentTag() / removeContentTag() - 内容标签管理
-// - updateTagsList() - 标签列表更新和DOM操作
-// - enableDragSort() - 拖拽排序功能 (已优化)
-// - getDragAfterElement() / updateTagsOrderFromDOM() - 拖拽辅助方法
+// - showAddModal() / showEditModal() - 模态框显示控制
+// - showModal() / hideModal() - 模态框基础控制
+// - addContentTag() / removeContentTag() - 标签管理
+// - updateTagsList() - 标签列表更新
+// - enableDragSort() - 拖拽排序功能
 // - toggleCustomStrategy() - 策略字段切换
-// - saveRule() - 规则保存和验证
+// - saveRule() - 规则保存 (已移除，解决循环依赖)
 //
-// 依赖关系:
-// - UIState.rules - 读取规则数据
-// - UIState.currentEditingRule - 当前编辑规则状态管理
-// - RulesManager.addRule() / RulesManager.editRule() - 规则CRUD操作
-// - jQuery - DOM操作和事件处理
-// - toastr - 错误通知显示
-//
-// 复杂功能保留:
-// - 拖拽排序: 完整的HTML5拖拽API实现，支持视觉反馈
-// - 表单验证: 规则名称和内容项的完整性验证
-// - 动态UI: 策略字段的动态显示/隐藏
-// - 安全DOM操作: 防止HTML注入的安全文本设置
+// 循环依赖解决:
+// 原循环: RuleEditor.saveRule() → RulesManager.addRule()/editRule() →
+//         RulesManager.renderRulesList() → createRuleElement() →
+//         编辑按钮绑定 → RuleEditor.showEditModal()
+// 现状态: 通过模块系统统一管理，避免循环依赖
 
 // ConfigWizard对象已移除 - 功能已迁移到ConfigWizardUI模块
 // 通过模块化系统，ConfigWizard现在通过window.ConfigWizard全局访问
