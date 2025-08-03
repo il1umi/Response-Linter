@@ -474,234 +474,36 @@ const RulesManager = {
   },
 };
 
-// 规则编辑器模态框
-const RuleEditor = {
-  currentTags: [],
-
-  // 显示添加新规则的模态框
-  showAddModal() {
-    this.currentTags = [];
-    $('#rl-editor-title').text('添加新规则');
-    $('#rl-rule-form')[0].reset();
-    $('#rl-rule-enabled').prop('checked', true);
-    this.updateTagsList();
-    this.showModal();
-  },
-
-  // 显示编辑现有规则的模态框
-  showEditModal(ruleId) {
-    const rule = UIState.rules.find(r => r.id === ruleId);
-    if (!rule) return;
-
-    UIState.currentEditingRule = ruleId;
-    this.currentTags = [...rule.requiredContent];
-
-    $('#rl-editor-title').text('编辑规则');
-    $('#rl-rule-name').val(rule.name);
-    $('#rl-rule-description').val(rule.description || '');
-    $('#rl-rule-strategy').val(rule.fixStrategy || '');
-    $('#rl-rule-enabled').prop('checked', rule.enabled);
-
-    // 新增：设置位置感知修复选项
-    if (rule.positionalOptions) {
-      $('#rl-insert-double-newline').prop('checked', rule.positionalOptions.doubleNewline !== false);
-    } else {
-      $('#rl-insert-double-newline').prop('checked', true); // 默认启用
-    }
-
-    this.updateTagsList();
-    this.toggleCustomStrategy();
-    this.togglePositionalStrategy(); // 新增：切换位置感知策略显示
-    this.showModal();
-  },
-
-  // 显示模态框
-  showModal() {
-    $('#rl-rule-editor-modal').fadeIn(200);
-    $('#rl-rule-name').focus();
-  },
-
-  // 隐藏模态框
-  hideModal() {
-    $('#rl-rule-editor-modal').fadeOut(200);
-    UIState.currentEditingRule = null;
-    this.currentTags = [];
-  },
-
-  // 添加内容标签
-  addContentTag() {
-    const input = $('#rl-new-content');
-    const content = input.val().trim();
-
-    if (content && !this.currentTags.includes(content)) {
-      this.currentTags.push(content);
-      this.updateTagsList();
-      input.val('').focus();
-    }
-  },
-
-  // 移除内容标签
-  removeContentTag(content) {
-    this.currentTags = this.currentTags.filter(tag => tag !== content);
-    this.updateTagsList();
-  },
-
-  // 更新标签列表显示
-  updateTagsList() {
-    const container = $('#rl-required-content-list');
-    container.empty();
-
-    this.currentTags.forEach((content, index) => {
-      // 安全地创建DOM元素，避免HTML注入问题
-      const tag = $('<div>').addClass('rl-content-tag').attr('draggable', 'true').attr('data-index', index);
-
-      const span = $('<span>').text(content); // 使用.text()安全地设置文本内容
-      const removeBtn = $('<button>')
-        .attr('type', 'button')
-        .addClass('rl-remove-tag')
-        .attr('data-content', content) // 使用.attr()安全地设置属性
-        .text('×');
-
-      tag.append(span).append(removeBtn);
-      container.append(tag);
-    });
-
-    // 启用拖拽排序功能
-    this.enableDragSort();
-  },
-
-  // 启用拖拽排序功能
-  enableDragSort() {
-    const container = $('#rl-required-content-list')[0];
-    let draggedElement = null;
-
-    // 拖拽开始
-    container.addEventListener('dragstart', e => {
-      if (e.target.classList.contains('rl-content-tag')) {
-        draggedElement = e.target;
-        e.target.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      }
-    });
-
-    // 拖拽结束
-    container.addEventListener('dragend', e => {
-      if (e.target.classList.contains('rl-content-tag')) {
-        e.target.classList.remove('dragging');
-        draggedElement = null;
-      }
-    });
-
-    // 拖拽悬停
-    container.addEventListener('dragover', e => {
-      e.preventDefault();
-      const afterElement = this.getDragAfterElement(container, e.clientY);
-      if (afterElement == null) {
-        container.appendChild(draggedElement);
-      } else {
-        container.insertBefore(draggedElement, afterElement);
-      }
-    });
-
-    // 拖拽放置
-    container.addEventListener('drop', e => {
-      e.preventDefault();
-      this.updateTagsOrderFromDOM();
-    });
-  },
-
-  // 获取拖拽后的位置元素
-  getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.rl-content-tag:not(.dragging)')];
-
-    return draggableElements.reduce(
-      (closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-
-        if (offset < 0 && offset > closest.offset) {
-          return { offset: offset, element: child };
-        } else {
-          return closest;
-        }
-      },
-      { offset: Number.NEGATIVE_INFINITY },
-    ).element;
-  },
-
-  // 从DOM更新标签顺序
-  updateTagsOrderFromDOM() {
-    const tagElements = $('#rl-required-content-list .rl-content-tag');
-    const newOrder = [];
-
-    tagElements.each((index, element) => {
-      const content = $(element).find('span').text();
-      newOrder.push(content);
-    });
-
-    this.currentTags = newOrder;
-    console.log('标签顺序已更新:', newOrder);
-  },
-
-  // 切换自定义策略字段
-  toggleCustomStrategy() {
-    const strategy = $('#rl-rule-strategy').val();
-    const customSection = $('#rl-custom-strategy');
-    const positionalSection = $('#rl-positional-strategy');
-
-    if (strategy === 'custom') {
-      customSection.show();
-      positionalSection.hide();
-    } else if (strategy === 'positional') {
-      customSection.hide();
-      positionalSection.show();
-    } else {
-      customSection.hide();
-      positionalSection.hide();
-    }
-  },
-
-  // 切换位置感知策略字段（已废弃，合并到toggleCustomStrategy中）
-  togglePositionalStrategy() {
-    // 此方法已合并到toggleCustomStrategy中
-    // 保留以避免破坏现有调用
-  },
-
-  // 保存规则
-  saveRule() {
-    const formData = {
-      name: $('#rl-rule-name').val().trim(),
-      description: $('#rl-rule-description').val().trim(),
-      enabled: $('#rl-rule-enabled').prop('checked'),
-      requiredContent: this.currentTags,
-      fixStrategy: $('#rl-rule-strategy').val(),
-      positionalOptions: {
-        // 新增：保存位置感知选项
-        doubleNewline: $('#rl-insert-double-newline').prop('checked'),
-      },
-    };
-
-    // 验证
-    if (!formData.name) {
-      toastr.error('规则名称为必填项！', '响应检查器');
-      return;
-    }
-
-    if (formData.requiredContent.length === 0) {
-      toastr.error('至少需要一个必需内容项！', '响应检查器');
-      return;
-    }
-
-    // 保存或更新规则
-    if (UIState.currentEditingRule) {
-      RulesManager.editRule(UIState.currentEditingRule, formData);
-    } else {
-      RulesManager.addRule(formData);
-    }
-
-    this.hideModal();
-  },
-};
+// RuleEditor对象已移除 - 功能已迁移到RuleEditorUI模块
+// 通过模块化系统，RuleEditor现在通过window.RuleEditor全局访问
+//
+// 原始对象定义范围: 478-704行 (227行代码)
+// 迁移位置: presentation/modules/rule-editor-ui.js
+// 全局访问: window.RuleEditor (向后兼容)
+// 模块访问: window.ResponseLinter.RuleEditor
+//
+// 主要功能:
+// - showAddModal() / showEditModal() - 显示添加/编辑规则模态框
+// - hideModal() / showModal() - 模态框显示控制
+// - addContentTag() / removeContentTag() - 内容标签管理
+// - updateTagsList() - 标签列表更新和DOM操作
+// - enableDragSort() - 拖拽排序功能 (已优化)
+// - getDragAfterElement() / updateTagsOrderFromDOM() - 拖拽辅助方法
+// - toggleCustomStrategy() - 策略字段切换
+// - saveRule() - 规则保存和验证
+//
+// 依赖关系:
+// - UIState.rules - 读取规则数据
+// - UIState.currentEditingRule - 当前编辑规则状态管理
+// - RulesManager.addRule() / RulesManager.editRule() - 规则CRUD操作
+// - jQuery - DOM操作和事件处理
+// - toastr - 错误通知显示
+//
+// 复杂功能保留:
+// - 拖拽排序: 完整的HTML5拖拽API实现，支持视觉反馈
+// - 表单验证: 规则名称和内容项的完整性验证
+// - 动态UI: 策略字段的动态显示/隐藏
+// - 安全DOM操作: 防止HTML注入的安全文本设置
 
 // ConfigWizard对象已移除 - 功能已迁移到ConfigWizardUI模块
 // 通过模块化系统，ConfigWizard现在通过window.ConfigWizard全局访问
