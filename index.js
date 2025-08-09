@@ -247,6 +247,9 @@ function loadSettings() {
 
   // 初始化后端系统
   backendController.initialize(settings);
+
+  // 暴露后端控制器到全局作用域供UI模块使用
+  window.backendController = backendController;
 }
 
 function saveSettings() {
@@ -496,10 +499,10 @@ function setupEventHandlers() {
   });
 
   $(document).on('change', '.rl-content-enabled', function (e) {
-    const content = $(this).closest('.rl-content-item').data('content');
+    const itemEl = $(this).closest('.rl-content-item')[0];
     const enabled = $(this).prop('checked');
-    if (content && window.ResponseLinter?.RuleEditor) {
-      window.ResponseLinter.RuleEditor.toggleContentItem(content, enabled);
+    if (itemEl && window.ResponseLinter?.RuleEditor) {
+      window.ResponseLinter.RuleEditor.toggleContentItem(itemEl, enabled);
     }
   });
 
@@ -581,6 +584,7 @@ jQuery(async () => {
     window.ResponseLinter = window.ResponseLinter || {};
     window.ResponseLinter.initializationMode = initializationMode;
     window.ResponseLinter.moduleInitSuccess = moduleInitSuccess;
+    window.ResponseLinter.backendController = backendController;
 
     console.log(`🎉 Response Linter扩展初始化完成 [模式: ${initializationMode}]`);
   } catch (error) {

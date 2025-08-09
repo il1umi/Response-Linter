@@ -207,11 +207,24 @@ export class RuleEditorUI {
         this.removeContentTag(content);
       });
 
-      // 绑定开关事件
+      // 绑定开关事件（直接传入对应的DOM元素，避免同名内容导致选择器命中多个项）
       const toggle = clone.querySelector('.rl-content-enabled');
       toggle.addEventListener('change', (e) => {
-        this.toggleContentItem(content, e.target.checked);
+        this.toggleContentItem(slider, e.target.checked);
       });
+
+      // 绑定修复绑定下拉事件
+      const bindingSelect = clone.querySelector('.rl-content-binding');
+      if (bindingSelect) {
+        // 从UIState.currentOptions读取已保存的绑定（如有）
+        const ruleId = window.UIState?.currentEditingRule;
+        const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
+        const bindingValue = currentRule?.contentOptions?.[content]?.binding ?? 'default';
+        bindingSelect.value = bindingValue;
+        bindingSelect.addEventListener('change', (e) => {
+          this.setContentBinding(content, e.target.value);
+        });
+      }
 
       // 添加到容器
       $('#rl-required-content-list').append(slider);
@@ -222,19 +235,46 @@ export class RuleEditorUI {
 
   /**
    * 切换内容项的启用状态
-   * @param {string} content - 内容文本
+   * @param {HTMLElement|jQuery|string} target - 该内容项的根元素或内容文本
    * @param {boolean} enabled - 是否启用
    */
-  toggleContentItem(content, enabled) {
+  toggleContentItem(target, enabled) {
     try {
-      const slider = $(`.rl-content-item[data-content="${content}"]`);
-      if (enabled) {
-        slider.removeClass('disabled');
-      } else {
-        slider.addClass('disabled');
+      // 允许传入DOM元素/jQuery对象/内容字符串，统一解析为对应的条目元素
+      let element = null;
+      let contentKey = null;
+      if (target && (target instanceof HTMLElement || target?.nodeType === 1)) {
+        element = target.closest('.rl-content-item');
+      } else if (window.jQuery && target instanceof jQuery) {
+        element = target.closest('.rl-content-item')[0];
+      } else if (typeof target === 'string') {
+        const content = target;
+        contentKey = content;
+        if (window.CSS && CSS.escape) {
+          element = document.querySelector(`.rl-content-item[data-content="${CSS.escape(content)}"]`);
+        }
+        if (!element) {
+          element = Array.from(document.querySelectorAll('.rl-content-item'))
+            .find(el => el.getAttribute('data-content') === content);
+        }
       }
 
-      console.log(`内容项 "${content}" ${enabled ? '已启用' : '已禁用'}`);
+      if (!element) return;
+      const slider = $(element);
+      contentKey = contentKey || slider.attr('data-content');
+
+      slider.toggleClass('disabled', !enabled);
+
+      // 记录当前规则的 contentOptions 状态（enabled）
+      const ruleId = window.UIState?.currentEditingRule;
+      const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
+      if (currentRule && contentKey) {
+        currentRule.contentOptions = currentRule.contentOptions || {};
+        const existing = currentRule.contentOptions[contentKey] || { binding: 'default' };
+        currentRule.contentOptions[contentKey] = { ...existing, enabled };
+      }
+
+      console.log(`内容项 "${contentKey}" ${enabled ? '已启用' : '已禁用'}`);
     } catch (error) {
       console.error('切换内容项状态失败:', error);
     }
@@ -466,7 +506,7 @@ export class RuleEditorUI {
       const contentItems = $('#rl-required-content-list .rl-content-item:not(.rl-drag-placeholder)');
       const newOrder = [];
 
-      contentItems.each((index, element) => {
+      contentItems.each((_, element) => {
         const content = $(element).attr('data-content');
         if (content) {
           newOrder.push(content);
@@ -528,6 +568,17 @@ export class RuleEditorUI {
           doubleNewline: $('#rl-insert-double-newline').prop('checked'),
         },
       };
+
+      // 将每个内容项的绑定写入 contentOptions
+      formData.contentOptions = {};
+      const ruleId = window.UIState?.currentEditingRule;
+      const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
+      // 初始化为 default，若已有则保留
+      this.currentTags.forEach(tag => {
+        const existing = currentRule?.contentOptions?.[tag];
+        const binding = document.querySelector(`.rl-content-item[data-content="${CSS.escape(tag)}"] .rl-content-binding`)?.value || existing?.binding || 'default';
+        formData.contentOptions[tag] = { enabled: true, binding };
+      });
 
       // 验证
       if (!formData.name) {
