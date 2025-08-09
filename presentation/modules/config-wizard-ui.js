@@ -261,31 +261,26 @@ export class ConfigWizardUI {
       if (this.selectedMode === 'thinking') {
         container.html(`
           <div class="rl-form-group">
-            <p>思维链验证模式将检查以下标签的顺序：</p>
+            <div class="rl-flex-header">
+              <p>思维链验证模式将检查以下标签的顺序：</p>
+              <div>
+                <button id="rl-wizard-apply-thinking-template" class="menu_button secondary small" type="button">
+                  一键套用：思维链（顺序+配对）
+                </button>
+              </div>
+            </div>
             <div class="rl-wizard-preview">
               <div class="rl-preview-item">1. <code>&lt;thinking&gt;</code> - 思考过程开始</div>
               <div class="rl-preview-item">2. <code>&lt;/thinking&gt;</code> - 思考过程结束</div>
               <div class="rl-preview-item">3. <code>&lt;content&gt;</code> - 内容开始</div>
               <div class="rl-preview-item">4. <code>&lt;/content&gt;</code> - 内容结束</div>
             </div>
-            <p>您可以在下方修改这些标签：</p>
-            <div id="rl-wizard-tags-container">
-              <div class="rl-wizard-tag-input">
-                <input type="text" value="<thinking>" data-index="0" />
-                <button type="button" class="rl-remove-wizard-tag">×</button>
-              </div>
-              <div class="rl-wizard-tag-input">
-                <input type="text" value="</thinking>" data-index="1" />
-                <button type="button" class="rl-remove-wizard-tag">×</button>
-              </div>
-              <div class="rl-wizard-tag-input">
-                <input type="text" value="<content>" data-index="2" />
-                <button type="button" class="rl-remove-wizard-tag">×</button>
-              </div>
-              <div class="rl-wizard-tag-input">
-                <input type="text" value="</content>" data-index="3" />
-                <button type="button" class="rl-remove-wizard-tag">×</button>
-              </div>
+            <p>您可以在下方修改这些标签，并为每项设置“绑定策略”与“启用开关”：</p>
+            <div id="rl-wizard-tags-container" class="rl-wizard-tags-table">
+              ${this._renderWizardTagRow('<thinking>', 0)}
+              ${this._renderWizardTagRow('</thinking>', 1)}
+              ${this._renderWizardTagRow('<content>', 2)}
+              ${this._renderWizardTagRow('</content>', 3)}
             </div>
             <button id="rl-add-wizard-tag" class="menu_button secondary small" type="button">
               <i class="fa-solid fa-plus"></i> 添加标签
@@ -297,6 +292,12 @@ export class ConfigWizardUI {
           requiredContent: ['<thinking>', '</thinking>', '<content>', '</content>'],
           fixStrategy: 'positional',
           positionalOptions: { doubleNewline: true },
+          contentOptions: {
+            '<thinking>': { enabled: true, binding: 'default' },
+            '</thinking>': { enabled: true, binding: 'after-previous-tag' },
+            '<content>': { enabled: true, binding: 'after-previous-tag' },
+            '</content>': { enabled: true, binding: 'before-next-tag' },
+          },
         };
       } else if (this.selectedMode === 'structured') {
         this.showStructuredOptions(container);
@@ -304,6 +305,8 @@ export class ConfigWizardUI {
         this.showCustomOptions(container);
       }
 
+      // 渲染后同步绑定/开关默认值
+      this._applyContentOptionsToRows();
       this.bindStepTwoEvents();
     } catch (error) {
       console.error('加载第二步内容失败:', error);
@@ -370,10 +373,73 @@ export class ConfigWizardUI {
   }
 
   /**
+   * 渲染向导第二步每一行的“标签 + 绑定 + 开关”
+   * @param {string} text 初始标签文本
+   * @param {number} index 索引
+   */
+  _renderWizardTagRow(text, index) {
+    const multiOptions = [
+      { val: 'balance-pairs', label: '配对检测与补齐' },
+      { val: 'after-prev', label: '依据上一个标签插入' },
+      { val: 'before-next', label: '依据下一个标签插入' },
+      { val: 'custom', label: '自定义（规则级正则）' },
+    ];
+
+    const opt = (this.wizardData?.contentOptions && this.wizardData.contentOptions[text]) || { enabled: true, actions: [] };
+
+    return `
+      <div class="rl-content-item rl-wizard-tag-row" data-index="${index}">
+        <div class="rl-content-header">
+          <div class="rl-drag-handle" title="拖拽排序"><i class="fa-solid fa-grip-vertical"></i></div>
+          <div class="rl-content-info">
+            <input type="text" class="rl-wizard-tag-text" value="${text}" data-index="${index}" />
+          </div>
+          <div class="rl-content-controls">
+            <label class="rl-content-toggle" title="启用/禁用此内容项">
+              <input type="checkbox" class="rl-wizard-tag-enabled rl-content-enabled" data-index="${index}" ${opt.enabled ? 'checked' : ''} />
+              <span class="rl-toggle-slider"></span>
+            </label>
+            <div class="rl-actions-chips"></div>
+            <button type="button" class="menu_button small rl-actions-config" title="配置修复动作"><i class="fa-solid fa-sliders"></i></button>
+            <button type="button" class="rl-delete-content rl-remove-wizard-tag" title="删除此内容项"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        <div class="rl-wizard-custom-pattern" style="display:none; padding: 0 12px 12px;">
+          <input type="text" class="rl-wizard-tag-pattern" data-index="${index}" placeholder="自定义正则（选填）" />
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * 绑定第二步事件
    */
   bindStepTwoEvents() {
     try {
+      // 一键模板：思维链（顺序+配对）
+      $(document)
+        .off('click', '#rl-wizard-apply-thinking-template')
+        .on('click', '#rl-wizard-apply-thinking-template', () => {
+          this.wizardData = {
+            requiredContent: ['<thinking>', '</thinking>', '<content>', '</content>'],
+            fixStrategy: 'positional',
+            positionalOptions: { doubleNewline: true },
+            contentOptions: {
+              '<thinking>': { enabled: true, binding: 'default' },
+              '</thinking>': { enabled: true, binding: 'after-previous-tag' },
+              '<content>': { enabled: true, binding: 'after-previous-tag' },
+              '</content>': { enabled: true, binding: 'before-next-tag' },
+            },
+          };
+          const container = $('#rl-wizard-tags-container');
+          container.html([
+            this._renderWizardTagRow('<thinking>', 0),
+            this._renderWizardTagRow('</thinking>', 1),
+            this._renderWizardTagRow('<content>', 2),
+            this._renderWizardTagRow('</content>', 3),
+          ].join(''));
+        });
+
       // 绑定添加标签事件
       $('#rl-add-wizard-tag')
         .off('click')
@@ -381,32 +447,59 @@ export class ConfigWizardUI {
           this.addWizardTag();
         });
 
-      // 绑定删除标签事件
+      // 删除：适配新结构（.rl-wizard-tag-row）
       $(document)
-        .off('click', '.rl-remove-wizard-tag')
-        .on('click', '.rl-remove-wizard-tag', e => {
-          $(e.target).closest('.rl-wizard-tag-input').remove();
+        .off('click', '.rl-remove-wizard-tag, .rl-delete-content')
+        .on('click', '.rl-remove-wizard-tag, .rl-delete-content', e => {
+          $(e.target).closest('.rl-wizard-tag-row, .rl-content-item, .rl-wizard-tag-input').remove();
           this.updateWizardData();
         });
 
-      // 绑定输入框变化事件
+      // 输入变化（文本/开关）
       $(document)
-        .off('input', '#rl-wizard-tags-container input')
-        .on('input', '#rl-wizard-tags-container input', () => {
-          this.updateWizardData();
-        });
+        .off('input change', '#rl-wizard-tags-container input, #rl-wizard-tags-container select')
+        .on('input change', '#rl-wizard-tags-container input, #rl-wizard-tags-container select', () => this.updateWizardData());
 
-      // 绑定结构化子选项事件
+      // 结构化子选项事件（保留）
       $('.rl-wizard-sub-option')
         .off('click')
         .on('click', e => {
           const type = $(e.currentTarget).data('type');
           this.selectStructuredType(type);
         });
+      // 动作设置按钮 -> 弹窗（移入方法体内，避免类作用域语法错误）
+      $(document)
+        .off('click', '#rl-wizard-tags-container .rl-actions-config')
+        .on('click', '#rl-wizard-tags-container .rl-actions-config', async (e) => {
+          const row = $(e.currentTarget).closest('.rl-wizard-tag-row');
+          const text = String(row.find('input.rl-wizard-tag-text').val() || '').trim();
+          const opt = (this.wizardData && this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || { enabled: true, actions: [] };
+          const picked = await this._openActionsPopup(opt.actions, opt.pattern);
+          if (!picked) return;
+          this.wizardData.contentOptions[text] = { enabled: opt.enabled, actions: picked.actions, ...((picked.actions && picked.actions.includes('custom') && picked.pattern) ? { pattern: picked.pattern } : {}) };
+          // 渲染chips
+          const chips = (picked.actions||[]).map(a=>({ 'balance-pairs': '配对', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' }[a]||a))
+            .map(t=>`<span class="rl-chip">${t}</span>`).join('');
+          row.find('.rl-actions-chips').html(chips);
+          // 自定义正则显示区域（保留原有容器以兼容）
+          row.find('.rl-wizard-custom-pattern').toggle((picked.actions||[]).includes('custom'));
+          if (picked.pattern) row.find('input.rl-wizard-tag-pattern').val(picked.pattern);
+          this.updateWizardData();
+        });
+
+      // 初始化渲染现有chips
+      $('#rl-wizard-tags-container .rl-wizard-tag-row').each((_, el)=>{
+        const row = $(el); const text = String(row.find('input.rl-wizard-tag-text').val()||'').trim();
+        const opt = (this.wizardData && this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || { enabled:true, actions:[] };
+        const chips = (opt.actions||[]).map(a=>({ 'balance-pairs': '配对', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' }[a]||a))
+          .map(t=>`<span class="rl-chip">${t}</span>`).join('');
+        row.find('.rl-actions-chips').html(chips);
+      });
     } catch (error) {
       console.error('绑定第二步事件失败:', error);
     }
   }
+
 
   /**
    * 添加向导标签
@@ -416,15 +509,10 @@ export class ConfigWizardUI {
       const container = $('#rl-wizard-tags-container');
       const index = container.children().length;
 
-      const tagInput = $(`
-        <div class="rl-wizard-tag-input">
-          <input type="text" placeholder="输入标签或内容..." data-index="${index}" />
-          <button type="button" class="rl-remove-wizard-tag">×</button>
-        </div>
-      `);
-
-      container.append(tagInput);
-      tagInput.find('input').focus();
+      const rowHtml = this._renderWizardTagRow('', index);
+      const row = $(rowHtml);
+      container.append(row);
+      row.find('input.rl-wizard-tag-text').focus();
     } catch (error) {
       console.error('添加向导标签失败:', error);
     }
@@ -435,21 +523,56 @@ export class ConfigWizardUI {
    */
   updateWizardData() {
     try {
-      const inputs = $('#rl-wizard-tags-container input');
+      const rows = '#rl-wizard-tags-container .rl-wizard-tag-row';
       const requiredContent = [];
+      const contentOptions = {};
 
-      inputs.each((index, element) => {
-        const value = $(element).val().trim();
-        if (value) {
-          requiredContent.push(value);
-        }
+      $(rows).each((idx, el) => {
+        const row = $(el);
+        const text = String(row.find('input.rl-wizard-tag-text').val() || '').trim();
+        if (!text) return;
+        const enabled = !!row.find('input.rl-wizard-tag-enabled').prop('checked');
+        const actions = row.find('.rl-multi-item input:checked').map((_, el)=>$(el).val()).get();
+        const pattern = String(row.find('input.rl-wizard-tag-pattern').val() || '').trim();
+        requiredContent.push(text);
+        contentOptions[text] = { enabled, actions, ...(actions.includes('custom') && pattern ? { pattern } : {}) };
       });
 
       this.wizardData.requiredContent = requiredContent;
+      this.wizardData.contentOptions = contentOptions;
     } catch (error) {
       console.error('更新向导数据失败:', error);
     }
   }
+
+  /**
+   * 将 wizardData.contentOptions 应用到已渲染的行（设置下拉/开关/正则）
+   */
+  _applyContentOptionsToRows() {
+    try {
+      const opts = this.wizardData?.contentOptions || {};
+      $('#rl-wizard-tags-container .rl-wizard-tag-row').each((i, el) => {
+        const row = $(el);
+        const text = String(row.find('input.rl-wizard-tag-text').val() || '').trim();
+        const opt = opts[text] || { enabled: true, actions: [] };
+        row.find('input.rl-wizard-tag-enabled').prop('checked', !!opt.enabled);
+        // 应用多选选中状态
+        const actions = Array.isArray(opt.actions) ? opt.actions : [];
+        row.find('.rl-multi-item input[type="checkbox"]').each((_, chk) => {
+          const v = $(chk).val();
+          const on = actions.includes(v);
+          $(chk).prop('checked', on);
+          $(chk).closest('.rl-multi-item').toggleClass('selected', on);
+        });
+        const pat = row.find('input.rl-wizard-tag-pattern');
+        pat.toggle(actions.includes('custom'));
+        if (opt.pattern) pat.val(opt.pattern);
+      });
+    } catch (e) {
+      console.warn('应用 contentOptions 到行失败', e);
+    }
+  }
+
 
   /**
    * 选择结构化类型
@@ -496,6 +619,16 @@ export class ConfigWizardUI {
         custom: '自定义规则',
       };
 
+      // 构建“必需内容 + 绑定 + 开关”摘要表格
+      const rows = (this.wizardData.requiredContent || []).map(text => {
+        const opt = (this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || { enabled: true, actions: [] };
+        const map = { 'balance-pairs': '配对补齐', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' };
+        const chips = (opt.actions||[]).map(a=>`<span class=\"rl-chip\">${map[a]||a}</span>`).join('');
+        const enabledText = opt.enabled ? '启用' : '禁用';
+        const extra = (opt.actions?.includes('custom') && opt.pattern) ? ` / 正则: <code>${opt.pattern}</code>` : '';
+        return `<li><code>${text}</code> — <span>${chips || '默认'}</span> — <em>${enabledText}</em>${extra}</li>`;
+      }).join('');
+
       let summaryHtml = `
         <div class="rl-summary-item">
           <span class="rl-summary-label">验证模式：</span>
@@ -503,7 +636,7 @@ export class ConfigWizardUI {
         </div>
         <div class="rl-summary-item">
           <span class="rl-summary-label">必需内容：</span>
-          <span class="rl-summary-value">${this.wizardData.requiredContent.join(', ')}</span>
+          <span class="rl-summary-value"><ul class="rl-summary-list">${rows}</ul></span>
         </div>
         <div class="rl-summary-item">
           <span class="rl-summary-label">修复策略：</span>
@@ -527,19 +660,57 @@ export class ConfigWizardUI {
    */
   generateRuleData() {
     try {
+      // 确保最新数据同步
+      this.updateWizardData();
       return {
         name: $('#rl-wizard-rule-name').val().trim(),
         description: $('#rl-wizard-rule-description').val().trim() || '',
         enabled: true,
         requiredContent: this.wizardData.requiredContent,
+        // fixStrategy 保持向后兼容：可能是字符串或数组
         fixStrategy: this.wizardData.fixStrategy,
         positionalOptions: this.wizardData.positionalOptions || { doubleNewline: true },
+        contentOptions: this.wizardData.contentOptions || {},
       };
     } catch (error) {
       console.error('生成规则数据失败:', error);
       return {};
     }
   }
+  /** 弹出动作选择弹窗（与规则编辑器一致的UI） */
+  _openActionsPopup(selected = [], pattern = '') {
+    try {
+      const html = $(`
+        <div class="rl-actions-popup">
+          <div class="grid-two">
+            <label class="checkbox_label"><input type="checkbox" value="balance-pairs"> <span>配对检测与补齐</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="after-prev"> <span>依据上一个标签插入</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="before-next"> <span>依据下一个标签插入</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="custom"> <span>自定义（规则级正则）</span></label>
+          </div>
+          <div class="rl-custom-area" style="display:none; margin-top:8px;">
+            <label>自定义正则（可选）</label>
+            <input type="text" class="text_pole" placeholder="例如：(</thinking>)(?!\\s*<content>)" />
+          </div>
+        </div>
+      `);
+      selected = Array.isArray(selected) ? selected : [];
+      html.find('input[type="checkbox"]').each((_, el)=>{ el.checked = selected.includes(el.value); });
+      const refreshCustom = () => html.find('.rl-custom-area').toggle(html.find('input[value="custom"]')[0].checked);
+      html.on('change', 'input[value="custom"]', refreshCustom); refreshCustom();
+      if (pattern) html.find('.rl-custom-area input').val(pattern);
+      const popup = (window.getContext && getContext().callGenericPopup) ? getContext().callGenericPopup : window.callGenericPopup;
+      if (!popup) throw new ReferenceError('callGenericPopup is not available');
+      return popup(html, 'confirm', '选择修复动作', { okButton: '确定', cancelButton: '取消', allowVerticalScrolling: true })
+        .then(ok => {
+          if (!ok) return null;
+          const actions = html.find('input:checked').map((_, el)=>el.value).get();
+          const pat = html.find('.rl-custom-area input').val()?.toString().trim() || '';
+          return { actions, pattern: pat };
+        });
+    } catch (e) { console.warn('Wizard openActionsPopup失败', e); return Promise.resolve(null); }
+  }
+
 
   /**
    * 测试规则
@@ -562,7 +733,8 @@ export class ConfigWizardUI {
         name: '临时测试规则',
         enabled: true,
         requiredContent: this.wizardData.requiredContent,
-        fixStrategy: this.wizardData.fixStrategy,
+        fixStrategy: Array.isArray(this.wizardData.fixStrategy) ? this.wizardData.fixStrategy : this.wizardData.fixStrategy,
+        contentOptions: this.wizardData.contentOptions,
       };
 
       // 使用后端控制器进行测试
@@ -572,6 +744,7 @@ export class ConfigWizardUI {
         const currentSettings = window.extension_settings ? window.extension_settings[extensionName] : {};
         const tempSettings = {
           ...currentSettings,
+          enabled: true, // 测试期强制启用验证引擎，避免被全局禁用短路
           rules: [...(currentSettings.rules || []), tempRule],
         };
 
@@ -589,10 +762,16 @@ export class ConfigWizardUI {
 
           if (!result || result.isValid) {
             resultContainer.addClass('success');
-            resultContainer.html(`
+            // 即使验证通过也显示修复预览：用于消除多余标签或规范空白
+            let passHtml = `
               <h5><i class="fa-solid fa-check-circle"></i> 验证通过</h5>
               <p>测试内容符合规则要求！</p>
-            `);
+            `;
+            try {
+              // 通过即不做规范化；仅提示用户已符合规则
+              // 如需预览流水线，可在下方切换为具体动作数组调用 previewFix([...])
+            } catch (pe) { console.warn('生成通过预览失败', pe); }
+            resultContainer.html(passHtml);
           } else {
             resultContainer.addClass('error');
             let errorHtml = `
@@ -612,6 +791,26 @@ export class ConfigWizardUI {
               errorHtml += `</ul>`;
             }
 
+            // 新增：失败时给出修复预览（注入当前规则上下文，便于位置/清理策略参考顺序）
+            try {
+              const prevRule = window.ResponseLinter?.CurrentRule;
+              window.ResponseLinter = window.ResponseLinter || {};
+              window.ResponseLinter.CurrentRule = tempRule;
+              const preview = window.backendController?.previewFix?.(testContent, result.missingContent, result.fixStrategy);
+              if (preview && preview.success && preview.newContent) {
+                const before = testContent.length > 300 ? testContent.slice(0, 300) + '...' : testContent;
+                const after = preview.newContent.length > 300 ? preview.newContent.slice(0, 300) + '...' : preview.newContent;
+                errorHtml += `<div class="rl-preview-block"><p><strong>修复预览（策略：${preview.strategy || '自动'}）</strong></p>` +
+                  `<div class="rl-preview-compare"><div><em>修复前</em><pre>${before.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre></div>` +
+                  `<div><em>修复后</em><pre>${after.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre></div></div></div>`;
+              } else if (preview && !preview.success) {
+                errorHtml += `<p><strong>修复预览失败：</strong>${preview.reason || '无可用修复'}</p>`;
+              }
+              window.ResponseLinter.CurrentRule = prevRule;
+            } catch (pe) {
+              console.warn('生成修复预览失败', pe);
+            }
+
             resultContainer.html(errorHtml);
           }
         } else {
@@ -624,6 +823,8 @@ export class ConfigWizardUI {
           <h5><i class="fa-solid fa-exclamation-triangle"></i> 测试出错</h5>
           <p>无法完成规则测试，请检查配置。错误：${error.message}</p>
         `);
+
+
       }
     } catch (error) {
       console.error('测试规则失败:', error);
