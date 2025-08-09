@@ -208,6 +208,13 @@ export class FixCoordinator {
       console.log(`开始处理修复任务 [${task.messageId}] - 策略: ${task.fixStrategy}`);
 
       // 尝试自动修复
+      // 将当前任务对应的规则顺序暴露给修复引擎（用于查找下一个/上一个标签）
+      try {
+        const rule = (window.UIState?.rules || []).find(r => r.id === task.ruleId) || null;
+        window.ResponseLinter = window.ResponseLinter || {};
+        window.ResponseLinter.CurrentRule = rule || null;
+      } catch (e) {}
+
       const fixResult = autoFixEngine.attemptFix(task.content, task.missingItems, task.fixStrategy);
 
       if (fixResult.success) {

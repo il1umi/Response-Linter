@@ -153,6 +153,14 @@
         <span class="rl-content-text"></span>
       </div>
       <div class="rl-content-controls">
+        <!-- 修复绑定：用于指示缺失时的插入策略（遵循双换行规则） -->
+        <select class="rl-content-binding" title="修复绑定：缺失时的插入策略">
+          <option value="default">默认（跟随规则策略）</option>
+          <option value="before-next-tag">在下一个标签之前插入</option>
+          <option value="after-previous-tag">在上一个标签之后插入</option>
+          <option value="thinking-content">思考→内容 专用</option>
+          <option value="custom">自定义（规则级正则）</option>
+        </select>
         <label class="rl-content-toggle" title="启用/禁用此内容项">
           <input type="checkbox" class="rl-content-enabled" checked />
           <span class="rl-toggle-slider"></span>

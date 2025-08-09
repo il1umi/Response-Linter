@@ -113,6 +113,7 @@ export class RulesManagerUI {
         fixStrategy: ruleData.fixStrategy,
         positionalOptions: ruleData.positionalOptions, // 新增：位置感知选项
         createdAt: new Date().toISOString(),
+        contentOptions: ruleData.contentOptions || {}, // 每项内容的修复绑定
       };
 
       // 添加到全局UIState
@@ -156,6 +157,7 @@ export class RulesManagerUI {
           requiredContent: ruleData.requiredContent,
           fixStrategy: ruleData.fixStrategy,
           positionalOptions: ruleData.positionalOptions, // 新增：保存位置感知选项
+          contentOptions: ruleData.contentOptions || window.UIState.rules[ruleIndex].contentOptions || {},
           updatedAt: new Date().toISOString(),
         };
 
@@ -236,6 +238,13 @@ export class RulesManagerUI {
 
       // 获取扩展名称
       const extensionName = 'response-linter';
+
+      // 过滤掉被禁用的内容项（contentOptions.enabled=false 的项不参与 requiredContent）
+      window.UIState.rules = window.UIState.rules.map(rule => {
+        if (!rule.contentOptions) return rule;
+        const enabledTags = (rule.requiredContent || []).filter(tag => rule.contentOptions[tag]?.enabled !== false);
+        return { ...rule, requiredContent: enabledTags };
+      });
 
       // 保存到扩展设置
       window.extension_settings[extensionName].rules = window.UIState.rules;

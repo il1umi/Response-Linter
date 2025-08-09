@@ -200,6 +200,10 @@ export class PositionalFixStrategy extends FixStrategy {
     try {
       let fixedContent = content;
 
+      // 从外部规则注入顺序信息（若可用）
+      // 约定：window.ResponseLinter?.CurrentRule?.requiredContent 提供当前规则顺序
+      this._requiredSeq = window.ResponseLinter?.CurrentRule?.requiredContent || [];
+
       // 为每个缺失项找到最佳插入位置
       for (const missingItem of missingItems) {
         const insertPosition = this._findBestInsertPosition(fixedContent, missingItem, missingItems);
@@ -232,7 +236,17 @@ export class PositionalFixStrategy extends FixStrategy {
       };
     }
 
-    // 针对结束标签的处理
+    // 优先：若存在“下一个期望标签”，在其前插入
+    const nextIndex = this._findNextExpectedTag(content, missingItem, allMissingItems);
+    if (nextIndex !== -1) {
+      return {
+        index: nextIndex,
+        type: 'before-next-tag',
+        addNewlines: this.options.doubleNewline,
+      };
+    }
+
+    // 针对结束标签的处理（fallback）
     if (missingItem.startsWith('</') && missingItem.endsWith('>')) {
       const tagName = missingItem.slice(2, -1);
       const openTag = `<${tagName}>`;
@@ -277,9 +291,23 @@ export class PositionalFixStrategy extends FixStrategy {
    * @returns {number} 位置索引，-1表示未找到
    */
   _findNextExpectedTag(content, missingItem, allMissingItems) {
-    // 这里可以实现更复杂的逻辑来查找下一个标签
-    // 暂时返回-1，使用默认插入位置
-    return -1;
+    try {
+      const seq = this._requiredSeq || []; // 运行时注入：当前规则的顺序
+      const idx = seq.indexOf(missingItem);
+      if (idx === -1) return -1;
+      let bestPos = -1;
+      for (let i = idx + 1; i < seq.length; i++) {
+        const candidate = seq[i];
+        const pos = content.indexOf(candidate);
+        if (pos !== -1) {
+          if (bestPos === -1 || pos < bestPos) bestPos = pos; // 找到“最靠前”的下一项
+        }
+      }
+      return bestPos;
+    } catch (e) {
+      console.error('查找下一个期望标签失败:', e);
+      return -1;
+    }
   }
 
   /**

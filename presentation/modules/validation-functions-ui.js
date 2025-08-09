@@ -43,15 +43,24 @@ export class ValidationFunctionsUI {
    */
   triggerManualValidation() {
     try {
-      if (!window.backendController) {
+      // 检查后端控制器是否可用
+      const backendController = window.backendController || window.ResponseLinter?.backendController;
+
+      if (!backendController) {
         console.warn('后端控制器未初始化');
+        console.log('调试信息:', {
+          windowBackendController: !!window.backendController,
+          responseLinterBackendController: !!window.ResponseLinter?.backendController,
+          responseLinter: !!window.ResponseLinter
+        });
+
         if (window.toastr) {
-          window.toastr.warning('验证系统未就绪', '响应检查器');
+          window.toastr.warning('验证系统未就绪，请检查扩展是否正确加载', '响应检查器');
         }
         return;
       }
 
-      const result = window.backendController.validateLatestMessage();
+      const result = backendController.validateLatestMessage();
 
       if (!result) {
         if (window.toastr) {
@@ -255,8 +264,11 @@ export class ValidationFunctionsUI {
   triggerAutoFix(ruleName) {
     try {
       console.log('触发自动修复功能:', ruleName);
-      
-      if (!window.backendController) {
+
+      // 检查后端控制器是否可用
+      const backendController = window.backendController || window.ResponseLinter?.backendController;
+
+      if (!backendController) {
         console.warn('后端控制器未初始化，无法执行自动修复');
         if (window.toastr) {
           window.toastr.warning('修复系统未就绪', '响应检查器');
@@ -265,7 +277,7 @@ export class ValidationFunctionsUI {
       }
 
       // 调用后端控制器的自动修复功能
-      window.backendController.triggerAutoFix(ruleName);
+      backendController.triggerAutoFix(ruleName);
     } catch (error) {
       console.error('触发自动修复失败:', error);
       if (window.toastr) {
