@@ -8,10 +8,22 @@ import { createBackendController } from './core/backend-controller.js';
 
 // 扩展配置
 const extensionName = 'response-linter';
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+// 以当前模块URL为基准解析扩展根目录，避免大小写/路径不一致导致模板404
+const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
 
 // 创建后端控制器实例
 const backendController = createBackendController(extensionName);
+
+// 兼容性桥：如果宿主环境未通过 getContext().callGenericPopup 暴露弹窗，则将核心的 callGenericPopup 挂到全局
+try {
+  if (!(window.getContext && getContext().callGenericPopup)) {
+    // 提供全局回退，供 UI 子模块使用
+    if (!window.callGenericPopup) window.callGenericPopup = callGenericPopup;
+  }
+} catch (e) {
+  // 即使 getContext 不存在也保证回退可用
+  if (!window.callGenericPopup) window.callGenericPopup = callGenericPopup;
+}
 
 // 默认设置结构
 const defaultSettings = {
@@ -86,7 +98,7 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
       <h3>确认自动修复</h3>
       <p><strong>修复策略</strong>: ${strategyName}</p>
       <p><strong>消息ID</strong>: ${messageId}</p>
-      
+
       <div class="rl-content-preview">
         <h4>修复后内容预览：</h4>
         <pre style="max-height: 150px; overflow-y: auto; background: var(--SmartThemeBodyColor); padding: 10px; border-radius: 4px; text-align: left;">${escapeHtml(
@@ -370,30 +382,70 @@ function setupEventHandlers() {
 
   $('#rl-show-success').on('change', saveSettings);
 
-  // 规则管理按钮
-  $('#rl-add-rule').on('click', () => RuleEditor.showAddModal());
-  $('#rl-demo-validation').on('click', () => ValidationFunctions.triggerManualValidation());
-  $('#rl-import-rules').on('click', () => RulesManager.importRules());
-  $('#rl-export-rules').on('click', () => RulesManager.exportRules());
+  // 安全加载 ConfigWizard（若尚未初始化，进行懒加载）
+  async function ensureConfigWizard() {
+    try {
+      if (!window.ConfigWizard) {
+        const { ConfigWizardUI } = await import('./presentation/modules/config-wizard-ui.js');
+        await ConfigWizardUI.initialize();
+      }
+    } catch (e) {
+      console.error('加载配置向导模块失败:', e);
+    }
+    return window.ConfigWizard;
+  }
 
-  // 模板按钮事件
-  $('#rl-template-thinking').on('click', () => RulesManager.addTemplate('thinking'));
-  $('#rl-template-code').on('click', () => RulesManager.addTemplate('code'));
-  $('#rl-template-qa').on('click', () => RulesManager.addTemplate('qa'));
+  // 安全加载 RuleEditor（若尚未初始化，进行懒加载）
+  async function ensureRuleEditor() {
+    try {
+      if (!window.RuleEditor) {
+        const { RuleEditorUI } = await import('./presentation/modules/rule-editor-ui.js');
+        await RuleEditorUI.initialize();
+      }
+    } catch (e) {
+      console.error('加载规则编辑器模块失败:', e);
+    }
+    return window.RuleEditor;
+  }
 
-  // 配置向导事件
-  $('#rl-config-wizard').on('click', () => ConfigWizard.show());
-  $('#rl-close-wizard, #rl-wizard-cancel').on('click', () => ConfigWizard.hide());
-  $('#rl-wizard-prev').on('click', () => ConfigWizard.prev());
-  $('#rl-wizard-next').on('click', () => ConfigWizard.next());
-  $('#rl-wizard-finish').on('click', () => ConfigWizard.finish());
-  $('#rl-wizard-test-btn').on('click', () => ConfigWizard.testRule());
+  // 安全加载 RulesManager（若尚未初始化，进行懒加载）
+  async function ensureRulesManager() {
+    try {
+      if (!window.RulesManager) {
+        const { RulesManagerUI } = await import('./presentation/modules/rules-manager-ui.js');
+        await RulesManagerUI.initialize();
+      }
+    } catch (e) {
+      console.error('加载规则管理器模块失败:', e);
+    }
+    return window.RulesManager;
+  }
+
+  // 规则管理按钮（使用懒加载确保可用）
+  $('#rl-add-rule').on('click', async () => (await ensureRuleEditor())?.showAddModal());
+  $('#rl-demo-validation').on('click', async () => (await ensureRulesManager()) && ValidationFunctions?.triggerManualValidation?.());
+  $('#rl-import-rules').on('click', async () => (await ensureRulesManager())?.importRules?.());
+  $('#rl-export-rules').on('click', async () => (await ensureRulesManager())?.exportRules?.());
+
+  // 模板按钮事件（确保RulesManager存在）
+  $('#rl-template-thinking').on('click', async () => (await ensureRulesManager())?.addTemplate('thinking'));
+  $('#rl-template-code').on('click', async () => (await ensureRulesManager())?.addTemplate('code'));
+  $('#rl-template-qa').on('click', async () => (await ensureRulesManager())?.addTemplate('qa'));
+
+  // 配置向导事件（懒加载，确保模块已初始化）
+  $('#rl-config-wizard').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.show) CW.show(); });
+  $('#rl-close-wizard, #rl-wizard-cancel').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.hide) CW.hide(); });
+  $('#rl-wizard-prev').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.prev) CW.prev(); });
+  $('#rl-wizard-next').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.next) CW.next(); });
+  $('#rl-wizard-finish').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.finish) CW.finish(); });
+  $('#rl-wizard-test-btn').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.testRule) CW.testRule(); });
 
   // 向导模式选择事件
-  $(document).on('click', '.rl-wizard-option', function () {
+  $(document).on('click', '.rl-wizard-option', async function () {
     $('.rl-wizard-option').removeClass('selected');
     $(this).addClass('selected');
-    ConfigWizard.selectedMode = $(this).data('mode');
+    const CW = await ensureConfigWizard();
+    if (CW) CW.selectedMode = $(this).data('mode');
   });
 
   // 使用指引展开/收起按钮事件
@@ -513,10 +565,13 @@ function setupEventHandlers() {
     }
   });
 
-  // 配置向导模态框事件
-  $('#rl-config-wizard-modal').on('click', function (e) {
+  // 配置向导模态框事件：点击遮罩弹确认再关闭（默认行为）
+  $('#rl-config-wizard-modal').on('click', async function (e) {
     if (e.target === this) {
-      ConfigWizard.hide();
+      if (window.confirm('关闭配置向导？当前进度将不会保存。')) {
+        const CW = await ensureConfigWizard();
+        if (CW) CW.hide();
+      }
     }
   });
 }
