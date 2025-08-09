@@ -213,16 +213,21 @@ export class RuleEditorUI {
         this.toggleContentItem(slider, e.target.checked);
       });
 
-      // 绑定修复绑定下拉事件
-      const bindingSelect = clone.querySelector('.rl-content-binding');
-      if (bindingSelect) {
-        // 从UIState.currentOptions读取已保存的绑定（如有）
+      // 行内“动作设置”按钮 -> 打开标准弹窗
+      const actionsBtn = clone.querySelector('.rl-actions-config');
+      const chipsBox = clone.querySelector('.rl-actions-chips');
+      if (actionsBtn && chipsBox) {
         const ruleId = window.UIState?.currentEditingRule;
         const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
-        const bindingValue = currentRule?.contentOptions?.[content]?.binding ?? 'default';
-        bindingSelect.value = bindingValue;
-        bindingSelect.addEventListener('change', (e) => {
-          this.setContentBinding(content, e.target.value);
+        const existing = currentRule?.contentOptions?.[content] || { actions: [] };
+        RuleEditorUI.renderChips(chipsBox, existing.actions);
+
+        actionsBtn.addEventListener('click', async () => {
+          const picked = await RuleEditorUI.openActionsPopup(existing.actions, existing.pattern);
+          if (!picked) return;
+          RuleEditorUI.setContentActions(content, picked.actions, picked.pattern);
+          RuleEditorUI.renderChips(chipsBox, picked.actions);
+          $('#rl-custom-strategy').toggle((picked.actions||[]).includes('custom'));
         });
       }
 
@@ -232,6 +237,7 @@ export class RuleEditorUI {
       console.error('创建内容滑块失败:', error);
     }
   }
+
 
   /**
    * 切换内容项的启用状态
@@ -243,16 +249,18 @@ export class RuleEditorUI {
       // 允许传入DOM元素/jQuery对象/内容字符串，统一解析为对应的条目元素
       let element = null;
       let contentKey = null;
-      if (target && (target instanceof HTMLElement || target?.nodeType === 1)) {
-        element = target.closest('.rl-content-item');
-      } else if (window.jQuery && target instanceof jQuery) {
-        element = target.closest('.rl-content-item')[0];
-      } else if (typeof target === 'string') {
-        const content = target;
-        contentKey = content;
-        if (window.CSS && CSS.escape) {
-          element = document.querySelector(`.rl-content-item[data-content="${CSS.escape(content)}"]`);
-        }
+
+      if (typeof target === 'string') {
+        element = $(`.rl-content-item[data-content="${CSS.escape(target)}"]`);
+        contentKey = target;
+      } else if (target instanceof HTMLElement) {
+        element = $(target);
+        contentKey = element.attr('data-content');
+      } else if (target && 'jquery' in target) {
+        element = target;
+      } else {
+        // 若传入的是克隆的 slider 节点
+        element = $(target?.closest ? target.closest('.rl-content-item') : null);
         if (!element) {
           element = Array.from(document.querySelectorAll('.rl-content-item'))
             .find(el => el.getAttribute('data-content') === content);
@@ -270,7 +278,7 @@ export class RuleEditorUI {
       const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
       if (currentRule && contentKey) {
         currentRule.contentOptions = currentRule.contentOptions || {};
-        const existing = currentRule.contentOptions[contentKey] || { binding: 'default' };
+        const existing = currentRule.contentOptions[contentKey] || { actions: [] };
         currentRule.contentOptions[contentKey] = { ...existing, enabled };
       }
 
@@ -279,6 +287,62 @@ export class RuleEditorUI {
       console.error('切换内容项状态失败:', error);
     }
   }
+
+  /** 渲染行内chips摘要 */
+  static renderChips(container, actions = []) {
+    const map = { 'balance-pairs': '配对', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' };
+    container.innerHTML = (actions||[]).map(a=>`<span class="rl-chip">${map[a]||a}</span>`).join('');
+  }
+
+  /** 打开动作选择弹窗（使用酒馆标准弹窗） */
+  static async openActionsPopup(selected = [], pattern = '') {
+    try {
+      const html = $(`
+        <div class="rl-actions-popup">
+          <div class="grid-two">
+            <label class="checkbox_label"><input type="checkbox" value="balance-pairs"> <span>配对检测与补齐</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="after-prev"> <span>依据上一个标签插入</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="before-next"> <span>依据下一个标签插入</span></label>
+            <label class="checkbox_label"><input type="checkbox" value="custom"> <span>自定义（规则级正则）</span></label>
+          </div>
+          <div class="rl-custom-area" style="display:none; margin-top:8px;">
+            <label>自定义正则（可选）</label>
+            <input type="text" class="text_pole" placeholder="例如：(</thinking>)(?!\\s*<content>)" />
+          </div>
+        </div>
+      `);
+      // 预选
+      selected = Array.isArray(selected) ? selected : [];
+      html.find('input[type="checkbox"]').each((_, el) => {
+        el.checked = selected.includes(el.value);
+      });
+      // 切换自定义区域
+      const refreshCustom = () => html.find('.rl-custom-area').toggle(html.find('input[value="custom"]')[0].checked);
+      html.on('change', 'input[value="custom"]', refreshCustom);
+      refreshCustom();
+      if (pattern) html.find('.rl-custom-area input').val(pattern);
+
+      const popup = (window.getContext && getContext().callGenericPopup) ? getContext().callGenericPopup : window.callGenericPopup;
+      if (!popup) throw new ReferenceError('callGenericPopup is not available');
+      const ok = await popup(html, 'confirm', '选择修复动作', { okButton: '确定', cancelButton: '取消', allowVerticalScrolling: true });
+      if (!ok) return null;
+      const actions = html.find('input:checked').map((_, el)=>el.value).get();
+      const pat = html.find('.rl-custom-area input').val()?.toString().trim() || '';
+      return { actions, pattern: pat };
+    } catch (e) { console.warn('openActionsPopup失败', e); return null; }
+  }
+
+  static setContentActions(content, actions, pattern) {
+    try {
+      const ruleId = window.UIState?.currentEditingRule;
+      const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
+      if (!currentRule) return;
+      currentRule.contentOptions = currentRule.contentOptions || {};
+      const existing = currentRule.contentOptions[content] || { enabled: true, actions: [] };
+      currentRule.contentOptions[content] = { ...existing, actions, ...(actions?.includes('custom') && pattern ? { pattern } : { pattern: undefined }) };
+    } catch (e) { console.warn('设置动作失败', e); }
+  }
+
 
   /**
    * 启用拖拽排序功能（性能优化版本）
@@ -571,13 +635,10 @@ export class RuleEditorUI {
 
       // 将每个内容项的绑定写入 contentOptions
       formData.contentOptions = {};
-      const ruleId = window.UIState?.currentEditingRule;
-      const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
-      // 初始化为 default，若已有则保留
+      // 采集每个内容项的动作（多选）
       this.currentTags.forEach(tag => {
-        const existing = currentRule?.contentOptions?.[tag];
-        const binding = document.querySelector(`.rl-content-item[data-content="${CSS.escape(tag)}"] .rl-content-binding`)?.value || existing?.binding || 'default';
-        formData.contentOptions[tag] = { enabled: true, binding };
+        const actions = Array.from(document.querySelectorAll(`.rl-content-item[data-content="${CSS.escape(tag)}"] .rl-multi-menu input:checked`)).map(el=>el.value);
+        formData.contentOptions[tag] = { enabled: true, actions };
       });
 
       // 验证

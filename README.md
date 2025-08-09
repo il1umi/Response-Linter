@@ -2,7 +2,7 @@
 
 一个强大的 SillyTavern 扩展，用于实时监控和智能修复 AI 回复格式。
 
-![版本](https://img.shields.io/badge/版本-1.3.0-blue.svg)
+![版本](https://img.shields.io/badge/版本-1.3.2-blue.svg)
 ![许可证](https://img.shields.io/badge/许可证-AGPL--3.0-blue.svg)
 ![SillyTavern](https://img.shields.io/badge/SillyTavern-兼容-brightgreen.svg)
 
@@ -41,19 +41,18 @@ Response-Linter/
 │       ├── rule-editor.html          # 规则编辑器模板
 │       └── settings.html             # 设置面板模板
 ├── 📄 index.js                       # 主入口文件 (支持模块化架构)
-├── 📄 test-modules.js                # UI模块测试工具 (v1.2新增)
 ├── 📄 manifest.json                  # 扩展清单文件
 ├── 📄 README.md                      # 项目文档
 └── 📄 LICENSE                        # 许可证文件
 ```
 
-### 🆕 v1.2 架构升级
+### 🆕 v1.3 更新摘要
 
-- **模块化UI架构**：完全重构UI层为独立模块，提高可维护性
-- **向后兼容机制**：保持所有原有API调用有效，支持渐进式升级
-- **安全回退系统**：模块加载失败时自动回退到兼容模式
-- **ES6模块支持**：采用现代JavaScript模块系统和依赖注入
-- **测试工具集成**：提供自动化和手动测试验证模块状态
+- 修复：ConfigWizardUI 顶层事件绑定导致的语法错误；将绑定移入类方法内
+- 修复：配置向导按钮的事件绑定兼容性，避免旧环境可选链解析问题
+- 增强：统一使用 getContext().callGenericPopup（带全局回退）展示标准弹窗
+- 增强：配置向导与规则编辑器的“修复规则”弹窗统一化，交互一致
+- 文档：README 与 manifest 版本更新到 1.3.2
 
 ## 🚀 快速开始
 
