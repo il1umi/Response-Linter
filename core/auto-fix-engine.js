@@ -657,6 +657,18 @@ export class AutoFixEngine {
       // 每一步后重新计算缺失项，避免重复插入；无变化则跳过后续
       for (const strategy of pipeline) {
         if (!strategy || !strategy.canFix(current, missingItems)) continue;
+
+        // 注入当前规则的 positionalOptions.doubleNewline 到位置感知策略
+        try {
+          if (strategy instanceof PositionalFixStrategy) {
+            const rule = window.ResponseLinter?.CurrentRule || null;
+            const ruleDoubleNewline = rule?.positionalOptions?.doubleNewline;
+            if (typeof ruleDoubleNewline === 'boolean') {
+              strategy.options.doubleNewline = ruleDoubleNewline;
+            }
+          }
+        } catch (e) { /* 安全兜底，不阻塞修复 */ }
+
         const next = strategy.fix(current, missingItems);
         if (next !== current && strategy.validate(next, missingItems)) {
           executed.push(strategy.name);
