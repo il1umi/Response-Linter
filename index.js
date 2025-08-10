@@ -805,6 +805,27 @@ jQuery(async () => {
       setupBackendEventHandlers();
     }
 
+    // 友好提示：若模块化失败，提示用户已自动切换到兼容模式，并提供详情入口
+    if (!moduleInitSuccess) {
+      try {
+        const clickToShow = async () => {
+          try { await showModuleInitDetails(); } catch (e) { console.warn('显示模块化失败详情弹窗失败', e); }
+        };
+        if (window.toastr) {
+          window.toastr.info('模块化加载失败，已切换到兼容模式。点击查看详情', '响应检查器', {
+            timeOut: 5000,
+            closeButton: true,
+            onclick: clickToShow,
+          });
+        } else {
+
+          // 无 toastr 时降级
+          console.warn('模块化加载失败，已切换到兼容模式');
+        }
+      } catch (e) { /* 忽略提示失败 */ }
+    }
+
+
     // 🔧 加载设置（两种模式都需要）
     loadSettings();
 
