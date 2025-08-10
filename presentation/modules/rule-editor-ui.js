@@ -9,14 +9,14 @@ export class RuleEditorUI {
   constructor() {
     this.currentTags = [];
     this.isInitialized = false;
-  }
-
-    // 依赖注入（可选）：后端控制器与 UI 状态
+    // 依赖注入（可选）：后端控制器与 UI 状态（放在构造器中，避免类字段使用 this 导致语法错误）
     this._controller = null;
     this._uiState = null;
+  }
 
-    this.setController = (c) => { this._controller = c; };
-    this.setUIState = (s) => { this._uiState = s; };
+  // 依赖注入 setter（使用标准类方法，兼容性更好）
+  setController(c) { this._controller = c; }
+  setUIState(s) { this._uiState = s; }
 
 
   /**
