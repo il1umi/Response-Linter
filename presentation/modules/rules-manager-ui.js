@@ -9,6 +9,16 @@ export class RulesManagerUI {
   constructor() {
     // 初始化时可以设置一些内部状态
     this.isInitialized = false;
+
+    // 依赖注入（可选）：后端控制器与 UI 状态
+    this._controller = null;
+    this._uiState = null;
+
+    /**
+     * 为未来替换 window.* 做准备的 setter
+     */
+    this.setController = (c) => { this._controller = c; };
+    this.setUIState = (s) => { this._uiState = s; };
   }
 
   /**
@@ -21,6 +31,10 @@ export class RulesManagerUI {
 
       // 创建实例
       const rulesManagerInstance = new RulesManagerUI();
+
+      // 兼容访问器：优先使用注入的 controller/uiState
+      Object.defineProperty(rulesManagerInstance, 'controller', { get() { return this._controller || window.backendController || window.ResponseLinter?.BackendController || null; } });
+      Object.defineProperty(rulesManagerInstance, 'uiState', { get() { return this._uiState || window.UIState || window.ResponseLinter?.UIState || null; } });
 
       // 设置到全局命名空间
       if (!window.ResponseLinter) {
@@ -48,7 +62,7 @@ export class RulesManagerUI {
       container.empty();
 
       // 获取全局UIState中的规则
-      const rules = window.UIState ? window.UIState.rules : [];
+      const rules = this.uiState ? this.uiState.rules : [];
 
       rules.forEach(rule => {
         const ruleElement = this.createRuleElement(rule);
@@ -56,8 +70,8 @@ export class RulesManagerUI {
       });
 
       // 更新状态指示器
-      if (window.UIState) {
-        window.UIState.updateStatusIndicator();
+      if (this.uiState) {
+        this.uiState.updateStatusIndicator();
       }
     } catch (error) {
       console.error('渲染规则列表失败:', error);
@@ -139,8 +153,8 @@ export class RulesManagerUI {
       };
 
       // 添加到全局UIState
-      if (window.UIState) {
-        window.UIState.rules.push(newRule);
+      if (this.uiState) {
+        this.uiState.rules.push(newRule);
       }
 
       this.saveRules();
@@ -165,21 +179,21 @@ export class RulesManagerUI {
    */
   editRule(ruleId, ruleData) {
     try {
-      if (!window.UIState) {
+      if (!this.uiState) {
         throw new Error('UIState未初始化');
       }
 
-      const ruleIndex = window.UIState.rules.findIndex(r => r.id === ruleId);
+      const ruleIndex = this.uiState.rules.findIndex(r => r.id === ruleId);
       if (ruleIndex !== -1) {
-        window.UIState.rules[ruleIndex] = {
-          ...window.UIState.rules[ruleIndex],
+        this.uiState.rules[ruleIndex] = {
+          ...this.uiState.rules[ruleIndex],
           name: ruleData.name,
           description: ruleData.description,
           enabled: ruleData.enabled,
           requiredContent: ruleData.requiredContent,
           fixStrategy: ruleData.fixStrategy,
           positionalOptions: ruleData.positionalOptions, // 新增：保存位置感知选项
-          contentOptions: ruleData.contentOptions || window.UIState.rules[ruleIndex].contentOptions || {},
+          contentOptions: ruleData.contentOptions || this.uiState.rules[ruleIndex].contentOptions || {},
           updatedAt: new Date().toISOString(),
         };
 
@@ -204,13 +218,13 @@ export class RulesManagerUI {
    */
   deleteRule(ruleId) {
     try {
-      if (!window.UIState) {
+      if (!this.uiState) {
         throw new Error('UIState未初始化');
       }
 
-      const rule = window.UIState.rules.find(r => r.id === ruleId);
+      const rule = this.uiState.rules.find(r => r.id === ruleId);
       if (rule) {
-        window.UIState.rules = window.UIState.rules.filter(r => r.id !== ruleId);
+        this.uiState.rules = this.uiState.rules.filter(r => r.id !== ruleId);
         this.saveRules();
         this.renderRulesList();
 
@@ -233,11 +247,11 @@ export class RulesManagerUI {
    */
   toggleRule(ruleId, enabled) {
     try {
-      if (!window.UIState) {
+      if (!this.uiState) {
         throw new Error('UIState未初始化');
       }
 
-      const rule = window.UIState.rules.find(r => r.id === ruleId);
+      const rule = this.uiState.rules.find(r => r.id === ruleId);
       if (rule) {
         rule.enabled = enabled;
         this.saveRules();
@@ -253,8 +267,8 @@ export class RulesManagerUI {
    */
   saveRules() {
     try {
-      if (!window.UIState || !window.extension_settings || !window.backendController) {
-        console.warn('保存规则：必需的全局对象未初始化');
+      if (!this.uiState || !window.extension_settings || !this.controller) {
+        console.warn('保存规则：必需的对象未初始化');
         return;
       }
 
@@ -262,17 +276,17 @@ export class RulesManagerUI {
       const extensionName = 'response-linter';
 
       // 过滤掉被禁用的内容项（contentOptions.enabled=false 的项不参与 requiredContent）
-      window.UIState.rules = window.UIState.rules.map(rule => {
+      this.uiState.rules = this.uiState.rules.map(rule => {
         if (!rule.contentOptions) return rule;
         const enabledTags = (rule.requiredContent || []).filter(tag => rule.contentOptions[tag]?.enabled !== false);
         return { ...rule, requiredContent: enabledTags };
       });
 
       // 保存到扩展设置
-      window.extension_settings[extensionName].rules = window.UIState.rules;
+      window.extension_settings[extensionName].rules = this.uiState.rules;
 
       // 同步更新后端规则
-      window.backendController.updateSettings(window.extension_settings[extensionName]);
+      this.controller.updateSettings(window.extension_settings[extensionName]);
 
       // 保存设置
       if (window.saveSettingsDebounced) {
@@ -288,11 +302,11 @@ export class RulesManagerUI {
    */
   exportRules() {
     try {
-      if (!window.UIState) {
+      if (!this.uiState) {
         throw new Error('UIState未初始化');
       }
 
-      const dataStr = JSON.stringify(window.UIState.rules, null, 2);
+      const dataStr = JSON.stringify(this.uiState.rules, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
 
@@ -336,8 +350,8 @@ export class RulesManagerUI {
               // 分配新ID以避免冲突
               importedRules.forEach(rule => {
                 rule.id = Date.now() + Math.random();
-                if (window.UIState) {
-                  window.UIState.rules.push(rule);
+                if (this.uiState) {
+                  this.uiState.rules.push(rule);
                 }
               });
 
