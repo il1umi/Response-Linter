@@ -207,6 +207,7 @@ export class ValidationEngine {
         errorType: ERROR_TYPES.MISSING_TAG,
         missingItems: missingItems,
         orderErrors: [],
+        beforeHints: [],
       };
     }
 
@@ -227,10 +228,6 @@ export class ValidationEngine {
       }
     }
 
-    // 确定最终验证结果
-    const isValid = missingItems.length === 0 && orderErrors.length === 0;
-
-    if (!isValid && orderErrors.length > 0) {
     // 额外：生成“在X之前”的提示（对偶语义），基于相邻对判断
     const beforeHints = [];
     for (let i = 0; i < foundItems.length - 1; i++) {
@@ -241,6 +238,9 @@ export class ValidationEngine {
       }
     }
 
+    // 确定最终验证结果
+    const isValid = missingItems.length === 0 && orderErrors.length === 0;
+    if (!isValid && orderErrors.length > 0) {
       errorType = ERROR_TYPES.WRONG_ORDER;
     }
 
@@ -249,6 +249,7 @@ export class ValidationEngine {
       errorType,
       missingItems,
       orderErrors,
+      beforeHints,
     };
   }
 
@@ -292,8 +293,8 @@ export class ValidationEngine {
         });
       }
       // 对偶：补充“在X之前”的提示（不改变判定，仅作为附加信息）
-      if (typeof beforeHints !== 'undefined' && Array.isArray(beforeHints)) {
-        for (const hint of beforeHints) {
+      if (Array.isArray(analysis.beforeHints) && analysis.beforeHints.length) {
+        for (const hint of analysis.beforeHints) {
           const curLine = this._getLineNumber(content, hint.actualPosition);
           const expLine = this._getLineNumber(content, hint.expectedBeforePosition);
           details.push({
