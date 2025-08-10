@@ -805,6 +805,36 @@ jQuery(async () => {
       setupBackendEventHandlers();
     }
 
+    // 诊断详情弹窗：展示模块化初始化状态（时间戳 / 已加载模块 / 错误信息）
+    async function showModuleInitDetails() {
+      try {
+        const mgr = window.ResponseLinterUIModuleManager;
+        const status = mgr?.getInitializationStatus?.() || {};
+        const modules = Array.isArray(status.modules) ? status.modules : [];
+        const err = status.error;
+        const ts = status.timestamp || new Date().toISOString();
+
+        const details = `
+          <div style="line-height:1.6">
+            <p>已自动切换到 <strong>兼容模式</strong>（若模块化失败），功能仍可使用。</p>
+            <p><strong>时间</strong>：${ts}</p>
+            <p><strong>已加载模块</strong>：${modules.join(', ') || '（无）'}</p>
+            <p><strong>错误信息</strong>：${(err && (err.message || String(err))) || '（未捕获错误）'}</p>
+            <p style="margin-top:10px;color:#aaa">提示：按 F12 打开控制台可查看更完整的错误堆栈。</p>
+          </div>
+        `;
+
+        const popup = (window.getContext && getContext().callGenericPopup)
+          ? getContext().callGenericPopup
+          : (window.callGenericPopup || (async (html) => alert('模块化加载失败，已切换到兼容模式。\n\n' + html.replace(/<[^>]+>/g, ''))));
+
+        await popup?.(details, 'display', '模块化加载详情', { allowVerticalScrolling: true, wide: true });
+      } catch (e) {
+        console.error('显示模块化失败详情出错:', e);
+      }
+    }
+
+
     // 友好提示：若模块化失败，提示用户已自动切换到兼容模式，并提供详情入口
     if (!moduleInitSuccess) {
       try {
