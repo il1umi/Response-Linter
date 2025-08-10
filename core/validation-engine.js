@@ -105,8 +105,13 @@ export class ValidationEngine {
   _validateSingleRule(content, rule, messageId) {
     const { requiredContent } = rule;
 
+    // 清洗必需项：过滤空白/孤立逗号等无效条目，避免出现“缺失内容：,”等噪音
+    const sanitizedRequired = Array.isArray(requiredContent)
+      ? requiredContent.filter(it => typeof it === 'string' && it.trim() && it.trim() !== ',')
+      : [];
+
     // 执行位置感知验证
-    const positionResults = this._validateContentPositions(content, requiredContent);
+    const positionResults = this._validateContentPositions(content, sanitizedRequired);
 
     // 分析验证结果
     const analysis = this._analyzeValidationResults(positionResults, rule);

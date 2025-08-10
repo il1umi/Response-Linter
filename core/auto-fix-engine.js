@@ -440,6 +440,34 @@ export class PositionalFixStrategy extends FixStrategy {
       }
     }
 
+    // 当仅缺起始或仅缺结束造成空壳时，尝试将紧邻的独立数字或文本包裹进刚插入的成对标签
+    // 适用场景：文本行后紧跟一个孤立的结束标签，如“1\n</block>”，而缺失“<block>”
+    try {
+      if (Array.isArray(this._requiredSeq)) {
+        // 检测是否刚刚插入了成对标签之一，且另一半已存在
+        const last = item;
+        if (typeof last === 'string') {
+          const mOpen = last.match(/^<([a-zA-Z0-9_-]+)>$/);
+          const mClose = last.match(/^<\/([a-zA-Z0-9_-]+)>$/);
+          const tagName = (mOpen && mOpen[1]) || (mClose && mClose[1]) || null;
+          if (tagName) {
+            const openTag = `<${tagName}>`;
+            const closeTag = `</${tagName}>`;
+            const afterInsert = content.slice(0, index) + insertText + content.slice(index);
+            // 如果两端标签都存在但中间是简单的“\n数字\n”或“\n文本\n”，则尝试包裹
+            const pattern = new RegExp(`${openTag}\s*([\u4e00-\u9fa5A-Za-z0-9_]+)\s*${closeTag}`);
+            if (!pattern.test(afterInsert)) {
+              // 查找 “openTag ... closeTag” 的相邻形态并包裹最近的简单片段
+              const near = new RegExp(`(${openTag})\s*([0-9A-Za-z]+)\s*(${closeTag})`);
+              const wrapped = afterInsert.replace(near, (_, a, mid, b) => `${a}${mid}${b}`);
+              if (wrapped !== afterInsert) return wrapped;
+            }
+          }
+        }
+      }
+    } catch {}
+
+
     return content.slice(0, index) + insertText + content.slice(index);
   }
 
