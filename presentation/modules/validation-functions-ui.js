@@ -8,7 +8,34 @@
 export class ValidationFunctionsUI {
   constructor() {
     this.isInitialized = false;
+    /**
+     * 依赖注入：后端控制器与 UI 状态
+     * @type {any}
+     */
+    this._controller = null; // 后端控制器（通过 UIModuleManager.finalizeInitialization 注入）
+    this._uiState = null;    // UIState 实例（通过 UIModuleManager.finalizeInitialization 注入）
   }
+
+  // 兼容访问器：优先使用注入的 controller/uiState，不存在时回退全局
+  get controller() { return this._controller || window.backendController || window.ResponseLinter?.BackendController || null; }
+  get uiState() { return this._uiState || window.UIState || window.ResponseLinter?.UIState || null; }
+
+  /**
+   * 依赖注入：设置后端控制器
+   * @param {any} controller
+   */
+  setController(controller) { this._controller = controller; }
+
+  /**
+   * 依赖注入：设置 UI 状态
+   * @param {any} uiState
+   */
+  setUIState(uiState) { this._uiState = uiState; }
+
+
+  // 兼容访问器：优先使用注入的 controller/uiState，不存在时回退全局
+  get controller() { return this._controller || window.backendController || window.ResponseLinter?.BackendController || null; }
+  get uiState() { return this._uiState || window.UIState || window.ResponseLinter?.UIState || null; }
 
   /**
    * 静态初始化方法
@@ -44,16 +71,10 @@ export class ValidationFunctionsUI {
   triggerManualValidation() {
     try {
       // 检查后端控制器是否可用
-      const backendController = window.backendController || window.ResponseLinter?.backendController;
+      const backendController = this.controller;
 
       if (!backendController) {
         console.warn('后端控制器未初始化');
-        console.log('调试信息:', {
-          windowBackendController: !!window.backendController,
-          responseLinterBackendController: !!window.ResponseLinter?.backendController,
-          responseLinter: !!window.ResponseLinter
-        });
-
         if (window.toastr) {
           window.toastr.warning('验证系统未就绪，请检查扩展是否正确加载', '响应检查器');
         }
@@ -83,8 +104,8 @@ export class ValidationFunctionsUI {
       }
 
       // 更新统计显示
-      if (window.UIState) {
-        window.UIState.updateStatistics();
+      if (this.uiState) {
+        this.uiState.updateStatistics();
       }
     } catch (error) {
       console.error('手动验证失败:', error);
@@ -107,7 +128,7 @@ export class ValidationFunctionsUI {
 
       const extensionName = 'response-linter';
       const duration = window.extension_settings[extensionName].notifications.duration * 1000;
-      const hasAutoFix = result.fixStrategy && window.UIState && window.UIState.isAutoFixEnabled;
+      const hasAutoFix = result.fixStrategy && this.uiState && this.uiState.isAutoFixEnabled;
 
       // 生成详细错误信息HTML
       const detailsHtml = this.generateErrorDetailsHtml(result);
@@ -115,6 +136,8 @@ export class ValidationFunctionsUI {
       let message = `<div class="rl-validation-error-detail">
                        <div class="rl-error-type">
                          规则验证失败：<strong>${result.ruleName}</strong>
+
+
                          ${this.getErrorBadgeHtml(result.errorType)}
                        </div>
                        ${detailsHtml}
@@ -251,7 +274,7 @@ export class ValidationFunctionsUI {
 
       const extensionName = 'response-linter';
       const duration = window.extension_settings[extensionName].notifications.duration * 1000;
-      const hasAutoFix = fixStrategy && window.UIState && window.UIState.isAutoFixEnabled;
+      const hasAutoFix = fixStrategy && this.uiState && this.uiState.isAutoFixEnabled;
 
       let message = `<strong>验证失败</strong><br>
                         规则：${ruleName}<br>
@@ -287,7 +310,7 @@ export class ValidationFunctionsUI {
       console.log('触发自动修复功能:', ruleName);
 
       // 检查后端控制器是否可用
-      const backendController = window.backendController || window.ResponseLinter?.backendController;
+      const backendController = this.controller;
 
       if (!backendController) {
         console.warn('后端控制器未初始化，无法执行自动修复');
@@ -312,7 +335,7 @@ export class ValidationFunctionsUI {
    */
   async previewAutoFix() {
     try {
-      const backendController = window.backendController || window.ResponseLinter?.backendController;
+      const backendController = this.controller;
       if (!backendController) { window.toastr?.warning('系统未就绪', '响应检查器'); return; }
       const latest = backendController.getLatestAIMessage?.();
       if (!latest || !latest.content) { window.toastr?.warning('未找到可预览的AI消息', '响应检查器'); return; }

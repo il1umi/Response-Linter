@@ -8,6 +8,13 @@
 export class ConfigWizardUI {
   constructor() {
     this.currentStep = 1;
+
+    // 依赖注入（可选）：后端控制器与 UI 状态
+    this._controller = null;
+    this._uiState = null;
+    this.setController = (c) => { this._controller = c; };
+    this.setUIState = (s) => { this._uiState = s; };
+
     this.selectedMode = null;
     this.wizardData = {};
     this.isInitialized = false;

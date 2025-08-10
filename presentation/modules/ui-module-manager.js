@@ -82,6 +82,24 @@ export class UIModuleManager {
           console.warn('部分模块未正确初始化:', missingModules);
         } else {
           console.log('✅ 所有UI模块已成功初始化并建立依赖关系');
+
+          // 依赖注入（最小侵入）：将 backendController 与 UIState 注入各模块实例
+          const controller = window.backendController || window.ResponseLinter?.BackendController || null;
+          const uiState = window.ResponseLinter?.UIState || window.UIState || null;
+          const targets = ['RulesManager', 'RuleEditor', 'ConfigWizard', 'ValidationFunctions'];
+          for (const key of targets) {
+            const inst = window.ResponseLinter[key];
+            if (!inst || typeof inst !== 'object') continue;
+            try {
+              // 优先调用模块自带的 setter（若将来添加），否则直接赋值为私有字段
+              if (typeof inst.setController === 'function') inst.setController(controller);
+              else inst._controller = controller;
+              if (typeof inst.setUIState === 'function') inst.setUIState(uiState);
+              else inst._uiState = uiState;
+            } catch (e) {
+              console.warn(`为模块 ${key} 注入依赖失败:`, e);
+            }
+          }
         }
       }
 
