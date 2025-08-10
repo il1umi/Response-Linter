@@ -55,7 +55,8 @@ export class UIModuleManager {
       console.log('🎉 UI模块初始化完成！');
       return true;
     } catch (error) {
-      console.error('❌ UI模块初始化失败:', error);
+      // 使用纯ASCII避免某些环境对全角标点解析问题
+      console.error('UI模块初始化失败:', error);
       this.initializationError = error;
 
       // 不抛出异常，允许回退到原始方式
