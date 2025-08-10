@@ -231,6 +231,16 @@ export class ValidationEngine {
     const isValid = missingItems.length === 0 && orderErrors.length === 0;
 
     if (!isValid && orderErrors.length > 0) {
+    // 额外：生成“在X之前”的提示（对偶语义），基于相邻对判断
+    const beforeHints = [];
+    for (let i = 0; i < foundItems.length - 1; i++) {
+      const current = foundItems[i];
+      const next = foundItems[i + 1];
+      if (current.firstPosition > next.firstPosition) {
+        beforeHints.push({ item: next.item, expectedBefore: current.item, actualPosition: next.firstPosition, expectedBeforePosition: current.firstPosition });
+      }
+    }
+
       errorType = ERROR_TYPES.WRONG_ORDER;
     }
 
@@ -262,7 +272,7 @@ export class ValidationEngine {
         details.push({
           type: 'missing',
           item: missingItem,
-          message: `未识别到标签 "${missingItem}"`,
+          message: `未识别到有效标签：${missingItem}` ,
           suggestedFix: this._generateMissingTagSuggestion(missingItem, insertPosition, lines),
           position: insertPosition,
         });
@@ -275,11 +285,26 @@ export class ValidationEngine {
         details.push({
           type: 'order',
           item: orderError.item,
-          message: `标签 "${orderError.item}" 位于第${currentLine}行，但应该在 "${orderError.expectedAfter}" (第${expectedLine}行) 之后`,
-          suggestedFix: `将 "${orderError.item}" 移到 "${orderError.expectedAfter}" 之后`,
+          message: `标签 ${orderError.item} 位于第${currentLine}行，未满足“在 ${orderError.expectedAfter} 之后”的要求（${orderError.expectedAfter} 位于第${expectedLine}行）`,
+          suggestedFix: `将 ${orderError.item} 移到 ${orderError.expectedAfter} 之后`,
           actualLine: currentLine,
           expectedAfterLine: expectedLine,
         });
+      }
+      // 对偶：补充“在X之前”的提示（不改变判定，仅作为附加信息）
+      if (typeof beforeHints !== 'undefined' && Array.isArray(beforeHints)) {
+        for (const hint of beforeHints) {
+          const curLine = this._getLineNumber(content, hint.actualPosition);
+          const expLine = this._getLineNumber(content, hint.expectedBeforePosition);
+          details.push({
+            type: 'order',
+            item: hint.item,
+            message: `标签 ${hint.item} 位于第${curLine}行，未满足“在 ${hint.expectedBefore} 之前”的要求（${hint.expectedBefore} 位于第${expLine}行）`,
+            suggestedFix: `将 ${hint.item} 移到 ${hint.expectedBefore} 之前`,
+            actualLine: curLine,
+            expectedBeforeLine: expLine,
+          });
+        }
       }
     }
 
@@ -401,4 +426,3 @@ export class ValidationEngine {
 // 导出验证引擎实例和错误类型常量
 export const validationEngine = new ValidationEngine();
 export { ERROR_TYPES };
- 

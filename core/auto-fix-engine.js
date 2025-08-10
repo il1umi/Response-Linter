@@ -179,6 +179,65 @@ export class MissingTagsFixStrategy extends FixStrategy {
 }
 
 /**
+ * 额外标签清理策略（严格模式）
+ * 移除未在规则必需内容中声明的其他XML样式标签
+ */
+export class SanitizeExtraTagsStrategy extends FixStrategy {
+  constructor() {
+    super('sanitize-extra-tags', '清理未声明的额外标签');
+  }
+
+  _getAllowedTagNames() {
+    try {
+      const seq = window.ResponseLinter?.CurrentRule?.requiredContent || [];
+      const names = new Set();
+      seq.forEach(item => {
+        if (typeof item === 'string' && item.startsWith('<') && item.endsWith('>')) {
+          const raw = item.replace(/^<\/?\s*/, '').replace(/\s*>$/, '');
+          const name = raw.split(' ')[0].replace(/^\//, '');
+          if (name) names.add(name.toLowerCase());
+        }
+      });
+      return names;
+    } catch {
+      return new Set();
+    }
+  }
+
+  canFix(content, _missingItems) {
+    const allowed = this._getAllowedTagNames();
+    if (!allowed || allowed.size === 0) return false; // 无上下文不处理
+    const tagRegex = /<\/?\s*([a-zA-Z0-9_-]+)[^>]*>/g;
+    let m;
+    while ((m = tagRegex.exec(content)) !== null) {
+      const name = String(m[1] || '').toLowerCase();
+      if (!allowed.has(name)) return true; // 存在未允许标签
+    }
+    return false;
+  }
+
+  fix(content) {
+    try {
+      const allowed = this._getAllowedTagNames();
+      if (!allowed || allowed.size === 0) return content;
+      const tagRegex = /<\/?\s*([a-zA-Z0-9_-]+)[^>]*>/g;
+      return content.replace(tagRegex, (full, name) => {
+        name = String(name || '').toLowerCase();
+        return allowed.has(name) ? full : '';
+      });
+    } catch (e) {
+      console.error('额外标签清理失败:', e);
+      return content;
+    }
+  }
+
+  validate(fixedContent, _originalMissingItems) {
+    // 清理策略不引入新的缺失；若需要可叠加基础校验
+    return true;
+  }
+}
+
+/**
  * 位置感知修复策略
  * 基于内容位置和顺序进行智能修复，支持双换行符分隔
  */
@@ -187,6 +246,7 @@ export class PositionalFixStrategy extends FixStrategy {
     super('positional', '位置感知修复策略');
     this.options = {
       doubleNewline: true, // 默认使用双换行符
+      mode: options.mode || null, // 可为 'after-prev' | 'before-next' | null
       ...options,
     };
   }
@@ -226,6 +286,14 @@ export class PositionalFixStrategy extends FixStrategy {
    * @returns {Object} 插入位置信息
    */
   _findBestInsertPosition(content, missingItem, allMissingItems) {
+    // 模式优先：after-prev 根据上一个应出现的标签定位插入点
+    if (this.options.mode === 'after-prev') {
+      const prevIdx = this._findPreviousExpectedTag(content, missingItem);
+      if (prevIdx !== -1) {
+        return { index: prevIdx, type: 'after-prev-tag', addNewlines: this.options.doubleNewline };
+      }
+    }
+
     // 针对思维链模式的特殊处理
     if (missingItem === '<content>' && content.includes('</thinking>')) {
       const thinkingEndIndex = content.lastIndexOf('</thinking>');
@@ -290,6 +358,7 @@ export class PositionalFixStrategy extends FixStrategy {
    * @param {Array<string>} allMissingItems - 所有缺失项
    * @returns {number} 位置索引，-1表示未找到
    */
+  // 查找下一个期望的标签位置（用于 before-next）
   _findNextExpectedTag(content, missingItem, allMissingItems) {
     try {
       const seq = this._requiredSeq || []; // 运行时注入：当前规则的顺序
@@ -306,6 +375,29 @@ export class PositionalFixStrategy extends FixStrategy {
       return bestPos;
     } catch (e) {
       console.error('查找下一个期望标签失败:', e);
+      return -1;
+    }
+  }
+
+  /**
+   * 查找上一个期望的标签结束位置（用于 after-prev）
+   */
+  _findPreviousExpectedTag(content, missingItem) {
+    try {
+      const seq = this._requiredSeq || [];
+      const idx = seq.indexOf(missingItem);
+      if (idx <= 0) return -1;
+      // 从 missingItem 往前寻找最近出现的前驱项（取其“结束位置”）
+      for (let i = idx - 1; i >= 0; i--) {
+        const prev = seq[i];
+        const lastPos = content.lastIndexOf(prev);
+        if (lastPos !== -1) {
+          return lastPos + String(prev).length; // 在前驱项之后插入
+        }
+      }
+      return -1;
+    } catch (e) {
+      console.error('查找上一个期望标签失败:', e);
       return -1;
     }
   }
@@ -330,7 +422,12 @@ export class PositionalFixStrategy extends FixStrategy {
           insertText = `\n\n${item}\n`;
           break;
         case 'before-next-tag':
-          insertText = `${item}\n\n`;
+          // 在下一个标签“前”插入：确保前面留双换行
+          insertText = `\n\n${item}`;
+          break;
+        case 'after-prev-tag':
+          // 在上一个标签“后”插入：确保后面留双换行
+          insertText = `\n\n${item}`;
           break;
         case 'end-tag':
           insertText = `\n${item}`;
@@ -359,6 +456,8 @@ export class PositionalFixStrategy extends FixStrategy {
     // 额外验证：确保插入的内容符合预期格式
     if (isValid && originalMissingItems.includes('<content>')) {
       // 验证思维链格式
+
+
       const hasThinking = fixedContent.includes('<thinking>') && fixedContent.includes('</thinking>');
       const hasContent = fixedContent.includes('<content>');
 
@@ -455,9 +554,16 @@ export class AutoFixEngine {
   _initializeDefaultStrategies() {
     // 注册默认修复策略
     this.registerStrategy('thinking-content', new ThinkingContentFixStrategy());
-    this.registerStrategy('add-missing-tags', new MissingTagsFixStrategy());
-    this.registerStrategy('positional', new PositionalFixStrategy()); // 注册位置感知修复策略
+    this.registerStrategy('balance-pairs', new MissingTagsFixStrategy());
+    // 位置感知拆分为两个微策略；保留旧 positional 以兼容
+    this.registerStrategy('after-prev', new PositionalFixStrategy({ mode: 'after-prev' }));
+    this.registerStrategy('before-next', new PositionalFixStrategy({ mode: 'before-next' }));
+    this.registerStrategy('positional', new PositionalFixStrategy());
+    // 清理未声明标签：保留注册但不在UI暴露
+    this.registerStrategy('sanitize-extra-tags', new SanitizeExtraTagsStrategy());
   }
+
+
 
   /**
    * 注册修复策略
@@ -495,66 +601,109 @@ export class AutoFixEngine {
 
   /**
    * 尝试修复内容
-   * @param {string} content - 原始内容
-   * @param {Array<string>} missingItems - 缺失的内容项
-   * @param {string} strategyName - 指定的修复策略名称
-   * @returns {FixResult} 修复结果
+   * - strategyName: string | string[] | null
+   * - 若为数组则按顺序组成流水线执行；否则与旧行为一致
    */
   attemptFix(content, missingItems, strategyName = null) {
     if (!this.isEnabled) {
-      return {
-        success: false,
-        originalContent: content,
-        fixedContent: content,
-        strategy: null,
-        fixedItems: [],
-        metadata: { reason: '自动修复引擎未启用' },
-      };
+      return { success: false, originalContent: content, fixedContent: content, strategy: null, fixedItems: [], metadata: { reason: '自动修复引擎未启用' } };
     }
 
     try {
-      // 如果指定了策略名称，只尝试该策略
-      const strategiesToTry = strategyName
-        ? [this.strategies.get(strategyName)].filter(Boolean)
-        : Array.from(this.strategies.values());
+      // 若未指定策略或为字符串，尝试根据当前规则的 contentOptions 派生流水线
+      let pipelineNames = [];
+      if (!strategyName || typeof strategyName === 'string') {
+        const rule = window.ResponseLinter?.CurrentRule || null;
+        if (rule && rule.contentOptions && Array.isArray(rule.requiredContent)) {
+          for (const item of rule.requiredContent) {
+            const opt = rule.contentOptions[item];
+            if (!opt || opt.enabled === false) continue;
+            const acts = Array.isArray(opt.actions) ? opt.actions : [];
+            for (const act of acts) pipelineNames.push(act);
+          }
+        }
+      }
+      if (Array.isArray(strategyName)) {
+        pipelineNames = strategyName;
+      } else if (typeof strategyName === 'string' && strategyName) {
+        pipelineNames = pipelineNames.length ? pipelineNames : [strategyName];
+      }
 
-      for (const strategy of strategiesToTry) {
-        if (strategy.canFix(content, missingItems)) {
-          const fixedContent = strategy.fix(content, missingItems);
+      // 去重，保持原有顺序
+      pipelineNames = pipelineNames.filter((n, i, arr) => arr.indexOf(n) === i);
 
-          // 验证修复结果
-          if (strategy.validate(fixedContent, missingItems)) {
-            const result = {
-              success: true,
-              originalContent: content,
-              fixedContent: fixedContent,
-              strategy: strategy.name,
-              fixedItems: this._findFixedItems(content, fixedContent, missingItems),
-              metadata: {
-                strategyDescription: strategy.description,
-                fixTime: new Date(),
-                contentLengthChange: fixedContent.length - content.length,
-              },
-            };
-
-            // 记录修复历史
-            this._recordFixHistory(result);
-
-            console.log(`修复成功 - 策略: ${strategy.name}`, result);
-            return result;
+      // 若包含 custom，则从当前规则读取 pattern + replacement 并注册策略（覆盖之前注册的custom）
+      if (pipelineNames.includes('custom')) {
+        const rule = window.ResponseLinter?.CurrentRule || null;
+        if (rule && rule.contentOptions) {
+          const seq = Array.isArray(rule.requiredContent) ? rule.requiredContent : Object.keys(rule.contentOptions);
+          for (const key of seq) {
+            const opt = rule.contentOptions[key];
+            if (opt && Array.isArray(opt.actions) && opt.actions.includes('custom') && opt.pattern && typeof opt.replacement === 'string') {
+              try { this.registerCustomStrategy(opt.pattern, opt.replacement, `规则自定义修复: ${key}`); } catch {}
+              break;
+            }
           }
         }
       }
 
-      // 没有策略能够修复
-      return {
-        success: false,
-        originalContent: content,
-        fixedContent: content,
-        strategy: null,
-        fixedItems: [],
-        metadata: { reason: '没有适用的修复策略' },
-      };
+      const pipeline = (pipelineNames.length ? pipelineNames : Array.from(this.strategies.keys()))
+        .map(n => this.strategies.get(n))
+        .filter(Boolean);
+
+      let current = content;
+      const executed = [];
+
+      // 每一步后重新计算缺失项，避免重复插入；无变化则跳过后续
+      for (const strategy of pipeline) {
+        if (!strategy || !strategy.canFix(current, missingItems)) continue;
+        const next = strategy.fix(current, missingItems);
+        if (next !== current && strategy.validate(next, missingItems)) {
+          executed.push(strategy.name);
+          current = next;
+          // 轻量重新评估：若所有缺失项已满足则可提前结束
+          const allOk = missingItems.every(it => current.includes(it));
+          if (allOk) break;
+        }
+      }
+
+      if (executed.length > 0 && current !== content) {
+        const result = {
+          success: true,
+          originalContent: content,
+          fixedContent: current,
+          strategy: executed.join(' | '),
+          fixedItems: this._findFixedItems(content, current, missingItems),
+          metadata: { pipeline: executed, fixTime: new Date(), contentLengthChange: current.length - content.length },
+        };
+        this._recordFixHistory(result);
+        console.log(`修复成功 - 流水线: ${result.strategy}`);
+        return result;
+      }
+
+      // 若是单策略模式则回退到旧逻辑尝试全部已注册策略
+      if (!Array.isArray(strategyName)) {
+        for (const strategy of Array.from(this.strategies.values())) {
+          if (strategy.canFix(content, missingItems)) {
+            const fixedContent = strategy.fix(content, missingItems);
+            if (strategy.validate(fixedContent, missingItems)) {
+              const result = {
+                success: true,
+                originalContent: content,
+                fixedContent,
+                strategy: strategy.name,
+                fixedItems: this._findFixedItems(content, fixedContent, missingItems),
+                metadata: { strategyDescription: strategy.description, fixTime: new Date(), contentLengthChange: fixedContent.length - content.length },
+              };
+              this._recordFixHistory(result);
+              console.log(`修复成功 - 策略: ${strategy.name}`, result);
+              return result;
+            }
+          }
+        }
+      }
+
+      return { success: false, originalContent: content, fixedContent: content, strategy: null, fixedItems: [], metadata: { reason: '没有适用的修复策略' } };
     } catch (error) {
       console.error('修复过程出错:', error);
       return {

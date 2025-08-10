@@ -223,12 +223,22 @@ export class RuleEditorUI {
         RuleEditorUI.renderChips(chipsBox, existing.actions);
 
         actionsBtn.addEventListener('click', async () => {
-          const picked = await RuleEditorUI.openActionsPopup(existing.actions, existing.pattern);
+          const picked = await RuleEditorUI.openActionsPopup(existing.actions, existing.pattern, existing.replacement);
           if (!picked) return;
-          RuleEditorUI.setContentActions(content, picked.actions, picked.pattern);
+          RuleEditorUI.setContentActions(content, picked.actions, picked.pattern, picked.replacement);
           RuleEditorUI.renderChips(chipsBox, picked.actions);
           $('#rl-custom-strategy').toggle((picked.actions||[]).includes('custom'));
         });
+        // 行内自定义规则迷你摘要：显示 pattern/replacement 的 tooltip
+        const mini = clone.querySelector('.rl-custom-mini');
+        if (mini) {
+          const pat = existing.pattern || '';
+          const rep = (typeof existing.replacement === 'string') ? existing.replacement : '';
+          const show = (existing.actions||[]).includes('custom') && (pat || typeof rep === 'string');
+          mini.style.display = show ? '' : 'none';
+          if (show) mini.setAttribute('title', `正则: ${pat || ''}${rep?`\n替换: ${rep}`:''}`);
+        }
+
       }
 
       // 添加到容器
@@ -295,7 +305,7 @@ export class RuleEditorUI {
   }
 
   /** 打开动作选择弹窗（使用酒馆标准弹窗） */
-  static async openActionsPopup(selected = [], pattern = '') {
+  static async openActionsPopup(selected = [], pattern = '', replacement = '') {
     try {
       const html = $(`
         <div class="rl-actions-popup">
@@ -307,7 +317,9 @@ export class RuleEditorUI {
           </div>
           <div class="rl-custom-area" style="display:none; margin-top:8px;">
             <label>自定义正则（可选）</label>
-            <input type="text" class="text_pole" placeholder="例如：(</thinking>)(?!\\s*<content>)" />
+            <input type="text" class="text_pole rl-custom-pattern" placeholder="例如：(</thinking>)(?!\\s*<content>)" />
+            <label style="margin-top:6px; display:block;">替换内容（replacement）</label>
+            <input type="text" class="text_pole rl-custom-replacement" placeholder="$1\n\n<content>" />
           </div>
         </div>
       `);
@@ -320,26 +332,33 @@ export class RuleEditorUI {
       const refreshCustom = () => html.find('.rl-custom-area').toggle(html.find('input[value="custom"]')[0].checked);
       html.on('change', 'input[value="custom"]', refreshCustom);
       refreshCustom();
-      if (pattern) html.find('.rl-custom-area input').val(pattern);
+      if (pattern) html.find('.rl-custom-area .rl-custom-pattern').val(pattern);
+      if (replacement) html.find('.rl-custom-area .rl-custom-replacement').val(replacement);
 
       const popup = (window.getContext && getContext().callGenericPopup) ? getContext().callGenericPopup : window.callGenericPopup;
       if (!popup) throw new ReferenceError('callGenericPopup is not available');
       const ok = await popup(html, 'confirm', '选择修复动作', { okButton: '确定', cancelButton: '取消', allowVerticalScrolling: true });
       if (!ok) return null;
       const actions = html.find('input:checked').map((_, el)=>el.value).get();
-      const pat = html.find('.rl-custom-area input').val()?.toString().trim() || '';
-      return { actions, pattern: pat };
+      const pat = html.find('.rl-custom-area .rl-custom-pattern').val()?.toString().trim() || '';
+      const rep = html.find('.rl-custom-area .rl-custom-replacement').val()?.toString() || '';
+      return { actions, pattern: pat, replacement: rep };
     } catch (e) { console.warn('openActionsPopup失败', e); return null; }
   }
 
-  static setContentActions(content, actions, pattern) {
+  static setContentActions(content, actions, pattern, replacement) {
     try {
       const ruleId = window.UIState?.currentEditingRule;
       const currentRule = ruleId ? window.UIState?.rules?.find(r => r.id === ruleId) : null;
       if (!currentRule) return;
       currentRule.contentOptions = currentRule.contentOptions || {};
       const existing = currentRule.contentOptions[content] || { enabled: true, actions: [] };
-      currentRule.contentOptions[content] = { ...existing, actions, ...(actions?.includes('custom') && pattern ? { pattern } : { pattern: undefined }) };
+      currentRule.contentOptions[content] = {
+        ...existing,
+        actions,
+        ...(actions?.includes('custom') && pattern ? { pattern } : { pattern: undefined }),
+        ...(actions?.includes('custom') && replacement ? { replacement } : { replacement: undefined }),
+      };
     } catch (e) { console.warn('设置动作失败', e); }
   }
 
@@ -637,8 +656,23 @@ export class RuleEditorUI {
       formData.contentOptions = {};
       // 采集每个内容项的动作（多选）
       this.currentTags.forEach(tag => {
-        const actions = Array.from(document.querySelectorAll(`.rl-content-item[data-content="${CSS.escape(tag)}"] .rl-multi-menu input:checked`)).map(el=>el.value);
-        formData.contentOptions[tag] = { enabled: true, actions };
+        const row = document.querySelector(`.rl-content-item[data-content="${CSS.escape(tag)}"]`);
+        const actions = Array.from(row?.querySelectorAll('.rl-multi-menu input:checked') || []).map(el=>el.value);
+        const tooltip = row?.querySelector('.rl-custom-mini');
+        const existing = (window.UIState?.rules?.find(r=>r.id===window.UIState?.currentEditingRule)?.contentOptions?.[tag]) || {};
+        // 写入已配置的 pattern/replacement（来源于弹窗保存）
+        formData.contentOptions[tag] = {
+          enabled: true,
+          actions,
+          ...(existing.pattern ? { pattern: existing.pattern } : {}),
+          ...(typeof existing.replacement === 'string' ? { replacement: existing.replacement } : {}),
+        };
+        // 同步 tooltip 状态
+        if (tooltip) {
+          const show = actions.includes('custom') && (existing.pattern || typeof existing.replacement === 'string');
+          tooltip.style.display = show ? '' : 'none';
+          if (show) tooltip.setAttribute('title', `正则: ${existing.pattern || ''}${existing.replacement?`\n替换: ${existing.replacement}`:''}`);
+        }
       });
 
       // 验证

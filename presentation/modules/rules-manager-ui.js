@@ -84,6 +84,28 @@ export class RulesManagerUI {
       rule.requiredContent.forEach(content => {
         const tag = $(`<span class="rl-tag">${content}</span>`);
         tagsContainer.append(tag);
+      // 渲染规则的必需内容摘要（包含 custom 的 pattern/replacement 提示）
+      try {
+        const tagsBox = element.find('.rl-rule-tags');
+        const map = { 'balance-pairs': '配对', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' };
+        const rc = Array.isArray(rule.requiredContent) ? rule.requiredContent : [];
+        tagsBox.empty();
+        rc.forEach(tag => {
+          const chip = $('<span>').addClass('rl-chip').text(tag);
+          tagsBox.append(chip);
+          // 附加动作摘要
+          const opt = rule.contentOptions?.[tag];
+          if (opt && Array.isArray(opt.actions) && opt.actions.length) {
+            const actText = opt.actions.map(a => map[a]||a).join('/');
+            tagsBox.append($('<small>').addClass('rl-help-text').css('margin-left','4px').text(`(${actText})`));
+            if (opt.actions.includes('custom') && (opt.pattern || typeof opt.replacement === 'string')) {
+              const extra = ` 正则:${opt.pattern||''}${opt.replacement?` / 替换:${opt.replacement}`:''}`;
+              tagsBox.append($('<small>').addClass('rl-help-text').css('margin-left','6px').text(extra));
+            }
+          }
+        });
+      } catch (e) { console.warn('渲染规则摘要失败', e); }
+
       });
 
       // 应用禁用状态

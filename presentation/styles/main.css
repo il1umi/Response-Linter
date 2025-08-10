@@ -1460,4 +1460,10 @@ input[type='range']::-moz-range-thumb {
 .rl-status-indicator.processing {
   animation: pulse 1s infinite;
 }
- 
+
+
+/* 动作chips与弹窗布局 */
+.rl-actions-chips { display:inline-flex; gap:6px; flex-wrap:wrap; vertical-align:middle; margin-right:6px; }
+.rl-chip { display:inline-block; padding:2px 6px; border:1px solid var(--SmartThemeBorderColor); border-radius:8px; font-size:12px; color:var(--SmartThemeBodyColor); opacity:0.9; }
+.rl-actions-popup .grid-two { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; align-items:center; }
+.rl-actions-popup .checkbox_label { display:flex; align-items:center; gap:8px; }

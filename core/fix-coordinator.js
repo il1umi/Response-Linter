@@ -115,6 +115,7 @@ export class FixCoordinator {
         content: messageData.content,
         missingItems: result.missingContent,
         ruleName: result.ruleName,
+        ruleId: result?.metadata?.ruleId || null,
         fixStrategy: result.fixStrategy,
         priority: this._calculatePriority(result),
         createdAt: new Date(),

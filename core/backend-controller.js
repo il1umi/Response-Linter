@@ -1,10 +1,15 @@
 // Response Linter 后端控制器
 // 整合验证引擎、消息处理器、修复协调器和通知系统，提供统一的后端接口
 
-import { extension_settings } from '../../../../extensions.js';
+// 通过 getContext() 获取扩展设置，避免直接依赖内部文件
+const __getCtx = () => { try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; } };
+const __ctx = __getCtx() || {};
+const extension_settings = __ctx.extensionSettings || window.extension_settings || {};
+
 import { fixCoordinator } from './fix-coordinator.js';
 import { messageHandler } from './message-handler.js';
 import { validationEngine } from './validation-engine.js';
+import { autoFixEngine } from './auto-fix-engine.js';
 
 /**
  * 后端控制器核心类
@@ -464,6 +469,36 @@ export class BackendController {
   }
 
   /**
+   * 预览修复（不落地、不触发确认），用于配置向导测试
+   * @param {string} content 原始内容
+   * @param {Array<string>} missingItems 缺失项
+   * @param {string|null} strategy 策略（可选，为空则尝试所有策略）
+   * @returns {{success:boolean, newContent:string, strategy:string|null, reason?:string}}
+   */
+  previewFix(content, missingItems = [], strategy = null) {
+    try {
+      if (!content || typeof content !== 'string') {
+        return { success: false, newContent: content || '', strategy: null, reason: '无效内容' };
+      }
+
+      // 确保修复引擎处于启用状态，仅用于预览计算
+      const prevEnabled = autoFixEngine.isEnabled;
+      autoFixEngine.setEnabled(true);
+      const res = autoFixEngine.attemptFix(content, missingItems, strategy);
+      autoFixEngine.setEnabled(prevEnabled);
+
+      if (!res.success) {
+        return { success: false, newContent: content, strategy: null, reason: res.metadata?.reason || '无法生成修复预览' };
+      }
+
+      return { success: true, newContent: res.fixedContent, strategy: res.strategy };
+    } catch (error) {
+      console.error('预览修复失败:', error);
+      return { success: false, newContent: content, strategy: null, reason: error.message };
+    }
+  }
+
+/**
    * 撤销修复操作
    * @param {string} messageId - 消息ID
    * @param {number} steps - 撤销步数，默认1

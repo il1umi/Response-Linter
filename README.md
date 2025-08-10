@@ -2,7 +2,7 @@
 
 一个强大的 SillyTavern 扩展，用于实时监控和智能修复 AI 回复格式。
 
-![版本](https://img.shields.io/badge/版本-1.3.2-blue.svg)
+![版本](https://img.shields.io/badge/版本-1.3.4-blue.svg)
 ![许可证](https://img.shields.io/badge/许可证-AGPL--3.0-blue.svg)
 ![SillyTavern](https://img.shields.io/badge/SillyTavern-兼容-brightgreen.svg)
 

@@ -1,7 +1,8 @@
 // Response Linter 消息处理器模块
 // 负责监听SillyTavern事件、提取消息内容和协调验证流程
 
-import { getContext } from '../../../../extensions.js';
+// 统一通过 getContext() 与事件系统交互，避免直接导入内部文件
+const __getCtx = () => { try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; } };
 
 /**
  * 消息处理器核心类
@@ -25,28 +26,27 @@ export class MessageHandler {
     }
 
     try {
-      // 导入SillyTavern事件系统
-      import('../../../../script.js')
-        .then(({ eventSource, event_types }) => {
-          // 监听AI消息渲染完成事件
-          const messageRenderedHandler = messageId => {
-            this._handleMessageRendered(messageId);
-          };
+      const ctx = __getCtx();
+      if (!ctx || !ctx.eventSource || !ctx.event_types) {
+        console.error('无法获取事件系统：getContext().eventSource/event_types 不可用');
+        return;
+      }
 
-          // 使用makeLast确保在所有其他处理器之后执行
-          eventSource.makeLast(event_types.CHARACTER_MESSAGE_RENDERED, messageRenderedHandler);
+      // 监听AI消息渲染完成事件
+      const messageRenderedHandler = messageId => {
+        this._handleMessageRendered(messageId);
+      };
 
-          this.eventListeners.push({
-            event: event_types.CHARACTER_MESSAGE_RENDERED,
-            handler: messageRenderedHandler,
-          });
+      // 使用makeLast确保在所有其他处理器之后执行
+      ctx.eventSource.makeLast(ctx.event_types.CHARACTER_MESSAGE_RENDERED, messageRenderedHandler);
 
-          this.isListening = true;
-          console.log('消息处理器开始监听事件');
-        })
-        .catch(error => {
-          console.error('导入SillyTavern事件系统失败:', error);
-        });
+      this.eventListeners.push({
+        event: ctx.event_types.CHARACTER_MESSAGE_RENDERED,
+        handler: messageRenderedHandler,
+      });
+
+      this.isListening = true;
+      console.log('消息处理器开始监听事件');
     } catch (error) {
       console.error('启动消息监听失败:', error);
     }
@@ -61,15 +61,15 @@ export class MessageHandler {
     }
 
     try {
+      const ctx = __getCtx();
+      if (!ctx || !ctx.eventSource) return;
       // 移除事件监听器
-      import('../../../../script.js').then(({ eventSource }) => {
-        this.eventListeners.forEach(({ event, handler }) => {
-          eventSource.off(event, handler);
-        });
-        this.eventListeners = [];
-        this.isListening = false;
-        console.log('消息处理器停止监听');
+      this.eventListeners.forEach(({ event, handler }) => {
+        ctx.eventSource.off(event, handler);
       });
+      this.eventListeners = [];
+      this.isListening = false;
+      console.log('消息处理器停止监听');
     } catch (error) {
       console.error('停止消息监听失败:', error);
     }

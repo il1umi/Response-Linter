@@ -71,8 +71,8 @@ export class ValidationFunctionsUI {
 
       if (result.isValid) {
         const extensionName = 'response-linter';
-        if (window.extension_settings && 
-            window.extension_settings[extensionName] && 
+        if (window.extension_settings &&
+            window.extension_settings[extensionName] &&
             window.extension_settings[extensionName].notifications.showSuccess) {
           if (window.toastr) {
             window.toastr.success('最新消息验证通过', '响应检查器');
@@ -125,15 +125,36 @@ export class ValidationFunctionsUI {
         extendedTimeOut: duration + 2000,
         closeButton: true,
         escapeHtml: false,
-        onclick: hasAutoFix ? () => this.triggerAutoFix(result.ruleName) : null,
       };
+
+      // 按设置决定 toast 点击行为：preview 或 apply
+      const defaultAction = (window.extension_settings?.[extensionName]?.defaultAutoFixAction) || 'apply';
+      if (defaultAction === 'preview') {
+        options.onclick = () => this.previewAutoFix();
+      } else if (hasAutoFix) {
+        options.onclick = () => this.triggerAutoFix(result.ruleName);
+      }
 
       if (hasAutoFix) {
         message += '<br><em>点击进行自动修复</em>';
+        // 附加一个“预览修复”链接，便于用户先看效果
+        message += ' <a href="#" class="rl-preview-link" style="margin-left:8px;">预览修复</a>';
         options.title = '⚠️ 可自动修复';
       } else {
         options.title = this.getErrorTitle(result.errorType);
       }
+
+      // 监听“预览修复”点击（toastr 渲染后绑定一次性事件）
+      setTimeout(() => {
+        try {
+          $(document)
+            .off('click.rl-preview', '.rl-preview-link')
+            .on('click.rl-preview', '.rl-preview-link', (e) => {
+              e.preventDefault();
+              this.previewAutoFix();
+            });
+        } catch {}
+      }, 0);
 
       window.toastr.warning(message, options.title, options);
     } catch (error) {
@@ -285,6 +306,56 @@ export class ValidationFunctionsUI {
       }
     }
   }
+
+  /**
+   * 预览自动修复：不写回消息，仅展示差异
+   */
+  async previewAutoFix() {
+    try {
+      const backendController = window.backendController || window.ResponseLinter?.backendController;
+      if (!backendController) { window.toastr?.warning('系统未就绪', '响应检查器'); return; }
+      const latest = backendController.getLatestAIMessage?.();
+      if (!latest || !latest.content) { window.toastr?.warning('未找到可预览的AI消息', '响应检查器'); return; }
+
+      // 执行一次验证，获取缺失项与策略
+      const validationResult = backendController.validateContent?.(latest.content, latest.messageId);
+      if (!validationResult || validationResult.isValid) { window.toastr?.info('当前消息已通过验证', '响应检查器'); return; }
+
+      // 预览修复
+      const preview = window.autoFixEngine?.previewFix?.(latest.content, validationResult.missingContent, validationResult.fixStrategy || null);
+      if (!preview || !preview.success || preview.fixedContent === latest.content) { window.toastr?.info('没有可预览的修复', '响应检查器'); return; }
+
+      // 弹窗展示差异（简单并排展示，保持最小侵入）
+      const html = $(`
+        <div class="rl-preview-diff">
+          <h3>修复预览（不修改原消息）</h3>
+          <div class="grid-two">
+            <div>
+              <h4>原始内容</h4>
+              <pre style="max-height:300px;overflow:auto;white-space:pre-wrap;">${$('<div>').text(latest.content).html()}</pre>
+            </div>
+            <div>
+              <h4>修复后内容</h4>
+              <pre style="max-height:300px;overflow:auto;white-space:pre-wrap;">${$('<div>').text(preview.fixedContent).html()}</pre>
+              <div style="margin-top:8px;">
+                <button class="menu_button small rl-copy-fixed">复制修复后内容</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `);
+      html.on('click', '.rl-copy-fixed', () => {
+        try { navigator.clipboard?.writeText(preview.fixedContent); window.toastr?.success('已复制', '响应检查器'); } catch {}
+      });
+
+      const popup = (window.getContext && getContext().callGenericPopup) ? getContext().callGenericPopup : window.callGenericPopup;
+      await popup?.(html, 'display', '修复预览', { allowVerticalScrolling: true });
+    } catch (e) {
+      console.error('预览自动修复失败', e);
+      window.toastr?.error('预览失败', '响应检查器');
+    }
+  }
+
 }
 
 // 导出单例模式的便捷访问方法

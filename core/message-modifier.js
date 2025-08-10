@@ -1,7 +1,8 @@
 // Response Linter 消息修改服务
 // 基于SillyTavern的updateMessageBlock实现安全的消息内容修改和DOM更新
 
-import { getContext } from '../../../../extensions.js';
+// 统一通过 getContext() 与宿主交互，避免直接导入 extensions.js
+const __getCtx = () => { try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; } };
 
 /**
  * 修改历史记录数据结构
@@ -181,10 +182,15 @@ export class MessageModifier {
    */
   async _updateMessageBlock(messageId, message) {
     try {
-      // 动态导入updateMessageBlock函数
-      const { updateMessageBlock } = await import('../../../../script.js');
+      const ctx = __getCtx();
+      // 优先使用 getContext 暴露的安全入口（若存在）
+      if (ctx && typeof ctx.updateMessageBlock === 'function') {
+        ctx.updateMessageBlock(messageId, message, { rerenderMessage: true });
+        return { success: true };
+      }
 
-      // 调用updateMessageBlock更新消息显示
+      // 回退：动态导入内部实现（存在耦合风险；尽量避免）
+      const { updateMessageBlock } = await import('../../../../script.js');
       updateMessageBlock(messageId, message, { rerenderMessage: true });
 
       return { success: true };

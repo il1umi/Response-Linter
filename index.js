@@ -1,34 +1,162 @@
 // Response Linter 扩展 - 主入口文件
 // UI层实现与真实后端功能集成
 
-import { saveSettingsDebounced } from '../../../../script.js';
-import { extension_settings } from '../../../extensions.js';
-import { callGenericPopup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
-import { createBackendController } from './core/backend-controller.js';
+// 统一通过 getContext() 与酒馆交互，避免直接导入内部文件
+// 注意：以下常量通过运行时从 getContext() 获取，保证低耦合
+const __getCtx = () => {
+  try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; }
+};
+const __ST = (() => {
+  const ctx = __getCtx() || {};
+  return {
+    extension_settings: ctx.extensionSettings || window.extension_settings || {},
+    saveSettingsDebounced: ctx.saveSettingsDebounced || window.saveSettingsDebounced || (() => {}),
+    renderExtensionTemplateAsync: ctx.renderExtensionTemplateAsync || null,
+    callGenericPopup: ctx.callGenericPopup || window.callGenericPopup,
+    POPUP_TYPE: ctx.POPUP_TYPE || { CONFIRM: 'confirm', DISPLAY: 'display', INPUT: 'input' },
+    POPUP_RESULT: ctx.POPUP_RESULT || { AFFIRMATIVE: true, NEGATIVE: false },
+  };
+})();
+// 为保持现有代码最小改动，映射到本地常量（不再直接从内部文件导入）
+const extension_settings = __ST.extension_settings;
+const saveSettingsDebounced = __ST.saveSettingsDebounced;
+const callGenericPopup = __ST.callGenericPopup;
+const POPUP_TYPE = __ST.POPUP_TYPE;
+const POPUP_RESULT = __ST.POPUP_RESULT;
+
 
 // 扩展配置
 const extensionName = 'response-linter';
 // 以当前模块URL为基准解析扩展根目录，避免大小写/路径不一致导致模板404
 const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
 
-// 创建后端控制器实例
-const backendController = createBackendController(extensionName);
+// 调试标记：确认脚本已被加载
+try { console.info('[Response Linter] index.js loaded'); } catch (e) {}
+
+
+// 后端控制器实例（使用动态 import 以便捕获下游语法错误）
+let backendController = null;
+
+(async () => {
+  try {
+    const { createBackendController } = await import('./core/backend-controller.js');
+    backendController = createBackendController(extensionName);
+    console.info('[Response Linter] backend controller ready');
+    try {
+      const settings = (extension_settings && extension_settings[extensionName]) || defaultSettings;
+      backendController.initialize(settings);
+      window.backendController = backendController;
+      console.info('[Response Linter] backend initialized (early)');
+    } catch (initErr) {
+      console.warn('[Response Linter] 后端早期初始化失败（稍后由loadSettings重试）:', initErr);
+    }
+  } catch (e) {
+    console.error('[Response Linter] 后端控制器加载失败，扩展将以降级模式运行:', e);
+  }
+})();
+
+
 
 // 兼容性桥：如果宿主环境未通过 getContext().callGenericPopup 暴露弹窗，则将核心的 callGenericPopup 挂到全局
 try {
-  if (!(window.getContext && getContext().callGenericPopup)) {
-    // 提供全局回退，供 UI 子模块使用
-    if (!window.callGenericPopup) window.callGenericPopup = callGenericPopup;
-  }
+  const ctx = __getCtx();
+  const popup = (ctx && ctx.callGenericPopup) ? ctx.callGenericPopup : callGenericPopup;
+  if (popup && !window.callGenericPopup) window.callGenericPopup = popup;
 } catch (e) {
-  // 即使 getContext 不存在也保证回退可用
-  if (!window.callGenericPopup) window.callGenericPopup = callGenericPopup;
+  if (!window.callGenericPopup && callGenericPopup) window.callGenericPopup = callGenericPopup;
 }
+
+// 降级弹窗桥：当宿主未暴露 getContext()/callGenericPopup 时，提供最小可用的标准弹窗实现
+(function ensurePopupBridge(){
+  try {
+    if (typeof window.callGenericPopup === 'function') return; // 已有实现
+
+    window.callGenericPopup = function(content, type = 'display', title = '', options = {}) {
+      return new Promise(resolve => {
+        try {
+          const overlay = document.createElement('div');
+          overlay.className = 'rl-compat-overlay';
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+
+          const modal = document.createElement('div');
+          modal.className = 'rl-compat-modal';
+          const cs = getComputedStyle(document.documentElement);
+          const bg = cs.getPropertyValue('--SmartThemeBlurTintColor').trim() || '#2a2a2a';
+          const fg = cs.getPropertyValue('--SmartThemeBodyColor').trim() || '#ffffff';
+          const bd = cs.getPropertyValue('--SmartThemeBorderColor').trim() || 'rgba(255,255,255,0.15)';
+          const minw = options.wide ? '640px' : '480px';
+          modal.style.cssText = `background:${bg};color:${fg};border:1px solid ${bd};border-radius:8px;min-width:${minw};max-width:90%;max-height:80vh;overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.35);`;
+
+          const header = document.createElement('div');
+          header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid '+bd+';';
+          const h3 = document.createElement('h3');
+          h3.textContent = title || '';
+          h3.style.cssText = 'margin:0;font-size:16px;font-weight:600;';
+          const close = document.createElement('button');
+          close.textContent = '×';
+          close.className = 'menu_button';
+          close.style.cssText = 'min-width:auto;padding:4px 10px;';
+          header.appendChild(h3); header.appendChild(close);
+
+          const body = document.createElement('div');
+          body.style.cssText = 'padding:12px 16px;'+(options.allowVerticalScrolling? 'overflow-y:auto;max-height:60vh;' : '');
+          if (content && content.jquery) {
+            body.appendChild(content[0]);
+          } else if (content instanceof HTMLElement) {
+            body.appendChild(content);
+          } else {
+            body.innerHTML = (typeof content === 'string') ? content : String(content ?? '');
+          }
+
+          const footer = document.createElement('div');
+          footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid '+bd+';';
+
+          let buttons = [];
+          if (Array.isArray(options.customButtons) && options.customButtons.length) {
+            buttons = options.customButtons.map(b => ({ text: b.text || '确定', result: b.result, classes: Array.isArray(b.classes)? b.classes : ['menu_button'] }));
+          } else if ((type||'').toLowerCase() === 'confirm') {
+            buttons = [
+              { text: options.okButton || '确定', result: true, classes: ['menu_button'] },
+              { text: options.cancelButton || '取消', result: false, classes: ['menu_button','secondary'] },
+            ];
+          } else {
+            buttons = [ { text: options.okButton || '关闭', result: true, classes: ['menu_button'] } ];
+          }
+
+          buttons.forEach(b => {
+            const btn = document.createElement('button');
+            btn.textContent = b.text;
+            btn.className = (b.classes||[]).join(' ');
+            btn.addEventListener('click', () => { cleanup(); resolve(b.result); });
+            footer.appendChild(btn);
+          });
+
+          modal.appendChild(header);
+          modal.appendChild(body);
+          modal.appendChild(footer);
+          overlay.appendChild(modal);
+          document.body.appendChild(overlay);
+
+          function cleanup(){ try { overlay.remove(); } catch(e){} }
+          close.addEventListener('click', () => { cleanup(); resolve(false); });
+          overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(false); } });
+          const onKey = (ev) => { if (ev.key === 'Escape') { document.removeEventListener('keydown', onKey); cleanup(); resolve(false); } };
+          document.addEventListener('keydown', onKey);
+        } catch (err) {
+          console.warn('Fallback callGenericPopup failed:', err);
+          resolve(false);
+        }
+      });
+    };
+  } catch(e) { /* ignore */ }
+})();
+
 
 // 默认设置结构
 const defaultSettings = {
   enabled: false,
   autoFix: false,
+  defaultAutoFixAction: 'apply', // 'preview' | 'apply'
   rules: [
     {
       id: 'thinking-content-demo',
@@ -128,6 +256,7 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
     if (result === POPUP_RESULT.AFFIRMATIVE) {
       // 用户确认修复
       try {
+        if (!backendController) { throw new Error('backendController未就绪'); }
         const confirmResult = await backendController.confirmFix(messageId, true);
         if (confirmResult.success) {
           toastr.success('修复已应用', '响应检查器');
@@ -141,6 +270,7 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
     } else {
       // 用户取消修复
       try {
+        if (!backendController) { throw new Error('backendController未就绪'); }
         await backendController.confirmFix(messageId, false);
         toastr.info('修复已取消', '响应检查器');
       } catch (error) {
@@ -248,6 +378,7 @@ function loadSettings() {
   // 更新UI控件
   $('#rl-enabled').prop('checked', settings.enabled);
   $('#rl-auto-fix').prop('checked', settings.autoFix);
+  $('#rl-default-auto-fix-action').val(settings.defaultAutoFixAction || 'apply');
   $('#rl-notification-duration').val(settings.notifications.duration);
   $('#rl-duration-display').text(settings.notifications.duration + '秒');
   $('#rl-show-success').prop('checked', settings.notifications.showSuccess);
@@ -257,11 +388,14 @@ function loadSettings() {
   UIState.updateStatistics();
   UIState.loadGuideState(); // 加载指引展开状态
 
-  // 初始化后端系统
-  backendController.initialize(settings);
-
-  // 暴露后端控制器到全局作用域供UI模块使用
-  window.backendController = backendController;
+  // 初始化后端系统（若后端加载失败则跳过，UI仍可显示）
+  try {
+    if (!backendController) throw new Error('backendController未就绪');
+    backendController.initialize(settings);
+    window.backendController = backendController;
+  } catch (e) {
+    console.warn('[Response Linter] 后端未就绪，UI先行加载。某些功能不可用。', e);
+  }
 }
 
 function saveSettings() {
@@ -269,11 +403,17 @@ function saveSettings() {
 
   settings.enabled = UIState.isExtensionEnabled;
   settings.autoFix = UIState.isAutoFixEnabled;
+  settings.defaultAutoFixAction = $('#rl-default-auto-fix-action').val() || 'apply';
   settings.notifications.duration = parseInt($('#rl-notification-duration').val());
   settings.notifications.showSuccess = $('#rl-show-success').prop('checked');
 
-  // 同步更新后端设置
-  backendController.updateSettings(settings);
+  // 同步更新后端设置（后端可能尚未就绪）
+  try {
+    if (!backendController) throw new Error('backendController未就绪');
+    backendController.updateSettings(settings);
+  } catch (e) {
+    console.warn('[Response Linter] 后端未就绪，暂不更新后端设置');
+  }
 
   saveSettingsDebounced();
 }
@@ -375,6 +515,8 @@ function setupEventHandlers() {
 
   // 通知设置
   $('#rl-notification-duration').on('input', function () {
+  $('#rl-default-auto-fix-action').on('change', saveSettings);
+
     const value = $(this).val();
     $('#rl-duration-display').text(value + '秒');
     saveSettings();
@@ -453,7 +595,7 @@ function setupEventHandlers() {
 
   // 统计
   $('#rl-reset-stats').on('click', function () {
-    backendController.resetStatistics();
+    try { if (backendController) backendController.resetStatistics(); } catch {}
     const settings = extension_settings[extensionName];
     settings.statistics = {
       validations: 0,
@@ -482,8 +624,11 @@ function setupEventHandlers() {
         return;
       }
 
-      // 调用后端修复API
-      const result = await backendController.triggerManualFix(latestMessageId);
+      // 调用后端修复API（后端可能尚未就绪）
+      let result = { success: false, reason: '后端未就绪' };
+      if (backendController?.triggerManualFix) {
+        result = await backendController.triggerManualFix(latestMessageId);
+      }
 
       if (result.success) {
         toastr.success('修复任务已提交', '响应检查器');
@@ -579,18 +724,45 @@ function setupEventHandlers() {
 // 扩展初始化
 jQuery(async () => {
   let initializationMode = 'unknown';
+
+    // 二次桥接：确保弹窗API在模板加载后可用（部分环境下早期桥接可能失败）
+    try {
+      const ctx2 = __getCtx();
+      const popup2 = (ctx2 && ctx2.callGenericPopup) ? ctx2.callGenericPopup : (window.callGenericPopup || callGenericPopup);
+      if (popup2) window.callGenericPopup = popup2;
+    } catch {}
+
   let moduleInitSuccess = false;
 
   try {
     console.log('🚀 Response Linter扩展开始初始化...');
+    console.info('[Response Linter] begin template load', { extensionFolderPath });
 
     // 🔒 核心UI注册逻辑 - 绝对不能修改
     console.log('📂 加载HTML模板...');
-    const settingsHtml = await $.get(`${extensionFolderPath}/presentation/templates/settings.html`);
-    const editorHtml = await $.get(`${extensionFolderPath}/presentation/templates/rule-editor.html`);
+    const ctx = __getCtx();
+    let settingsHtml, editorHtml;
+    if (ctx && typeof ctx.renderExtensionTemplateAsync === 'function') {
+      // 使用酒馆标准模板加载
+      settingsHtml = await ctx.renderExtensionTemplateAsync(`${extensionFolderPath}/presentation/templates`, 'settings');
+      editorHtml = await ctx.renderExtensionTemplateAsync(`${extensionFolderPath}/presentation/templates`, 'rule-editor');
+    } else {
+      // 回退到$.get，保证兼容性
+      settingsHtml = await $.get(`${extensionFolderPath}/presentation/templates/settings.html`);
+      editorHtml = await $.get(`${extensionFolderPath}/presentation/templates/rule-editor.html`);
+    }
 
-    // 🔒 添加到扩展设置面板 - 绝对不能修改
-    $('#extensions_settings2').append(settingsHtml);
+    // 🔒 添加到扩展设置面板（右列优先，缺失则回退左列）
+    const $right = $('#extensions_settings2');
+    const $left = $('#extensions_settings');
+    const $target = $right.length ? $right : $left;
+    if ($target && $target.length) {
+      $target.append(settingsHtml);
+      console.info('[Response Linter] settings appended to', $target.attr('id')||'unknown');
+    } else {
+      console.warn('未找到扩展设置面板容器，尝试直接附加到body');
+      $('body').append(settingsHtml);
+    }
     $('body').append(editorHtml);
     console.log('✅ HTML模板加载完成');
 
@@ -623,6 +795,7 @@ jQuery(async () => {
 
       // 设置事件处理器（原有逻辑）
       setupEventHandlers();
+    console.info('[Response Linter] loadSettings()');
       setupBackendEventHandlers();
 
       console.log('✅ 兼容模式初始化完成');

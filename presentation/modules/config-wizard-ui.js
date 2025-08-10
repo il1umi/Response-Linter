@@ -406,6 +406,7 @@ export class ConfigWizardUI {
         </div>
         <div class="rl-wizard-custom-pattern" style="display:none; padding: 0 12px 12px;">
           <input type="text" class="rl-wizard-tag-pattern" data-index="${index}" placeholder="自定义正则（选填）" />
+              <input type="text" class="rl-wizard-tag-replacement" data-index="${index}" placeholder="替换内容（replacement，可选）" />
         </div>
       </div>
     `;
@@ -474,9 +475,14 @@ export class ConfigWizardUI {
           const row = $(e.currentTarget).closest('.rl-wizard-tag-row');
           const text = String(row.find('input.rl-wizard-tag-text').val() || '').trim();
           const opt = (this.wizardData && this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || { enabled: true, actions: [] };
-          const picked = await this._openActionsPopup(opt.actions, opt.pattern);
+          const picked = await this._openActionsPopup(opt.actions, opt.pattern, opt.replacement);
           if (!picked) return;
-          this.wizardData.contentOptions[text] = { enabled: opt.enabled, actions: picked.actions, ...((picked.actions && picked.actions.includes('custom') && picked.pattern) ? { pattern: picked.pattern } : {}) };
+          this.wizardData.contentOptions[text] = {
+            enabled: opt.enabled,
+            actions: picked.actions,
+            ...((picked.actions && picked.actions.includes('custom') && picked.pattern) ? { pattern: picked.pattern } : {}),
+            ...((picked.actions && picked.actions.includes('custom') && picked.replacement) ? { replacement: picked.replacement } : {}),
+          };
           // 渲染chips
           const chips = (picked.actions||[]).map(a=>({ 'balance-pairs': '配对', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' }[a]||a))
             .map(t=>`<span class="rl-chip">${t}</span>`).join('');
@@ -534,8 +540,13 @@ export class ConfigWizardUI {
         const enabled = !!row.find('input.rl-wizard-tag-enabled').prop('checked');
         const actions = row.find('.rl-multi-item input:checked').map((_, el)=>$(el).val()).get();
         const pattern = String(row.find('input.rl-wizard-tag-pattern').val() || '').trim();
+        const replacement = String(row.find('input.rl-wizard-tag-replacement').val() || '');
         requiredContent.push(text);
-        contentOptions[text] = { enabled, actions, ...(actions.includes('custom') && pattern ? { pattern } : {}) };
+        contentOptions[text] = {
+          enabled, actions,
+          ...(actions.includes('custom') && pattern ? { pattern } : {}),
+          ...(actions.includes('custom') && replacement ? { replacement } : {}),
+        };
       });
 
       this.wizardData.requiredContent = requiredContent;
@@ -625,7 +636,8 @@ export class ConfigWizardUI {
         const map = { 'balance-pairs': '配对补齐', 'after-prev': '上后', 'before-next': '下前', 'custom': '自定义' };
         const chips = (opt.actions||[]).map(a=>`<span class=\"rl-chip\">${map[a]||a}</span>`).join('');
         const enabledText = opt.enabled ? '启用' : '禁用';
-        const extra = (opt.actions?.includes('custom') && opt.pattern) ? ` / 正则: <code>${opt.pattern}</code>` : '';
+        const extra = (opt.actions?.includes('custom') && (opt.pattern || opt.replacement)) ?
+          ` / 正则: <code>${opt.pattern||''}</code>${opt.replacement?` / 替换: <code>${opt.replacement}</code>`:''}` : '';
         return `<li><code>${text}</code> — <span>${chips || '默认'}</span> — <em>${enabledText}</em>${extra}</li>`;
       }).join('');
 
@@ -705,8 +717,9 @@ export class ConfigWizardUI {
         .then(ok => {
           if (!ok) return null;
           const actions = html.find('input:checked').map((_, el)=>el.value).get();
-          const pat = html.find('.rl-custom-area input').val()?.toString().trim() || '';
-          return { actions, pattern: pat };
+          const pat = html.find('.rl-custom-area input[type="text"].rl-custom-pattern').val()?.toString().trim() || '';
+          const rep = html.find('.rl-custom-area input[type="text"].rl-custom-replacement').val()?.toString() || '';
+          return { actions, pattern: pat, replacement: rep };
         });
     } catch (e) { console.warn('Wizard openActionsPopup失败', e); return Promise.resolve(null); }
   }

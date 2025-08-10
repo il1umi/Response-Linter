@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "presentation/styles/main.css",
   "author": "shin/il1umi",
-  "version": "1.3.2",
+  "version": "1.3.4",
   "homePage": "https://github.com/il1umi/Response-Linter.git"
 }

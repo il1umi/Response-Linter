@@ -1,0 +1,26 @@
+# Ignore analysis docs and local artifacts
+REFACTOR_ANALYSIS.md
+index.js.backup
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Logs and env
+*.log
+.env
+.env.*
+
+# Node related (precautionary)
+node_modules/
+.npmrc
+
+# Editors/IDE
+.vscode/
+.idea/
+*.iml
+
+# Misc
+*.tmp
+*.swp
+
