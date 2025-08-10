@@ -384,9 +384,9 @@ function loadSettings() {
   $('#rl-show-success').prop('checked', settings.notifications.showSuccess);
 
   // 渲染规则并更新状态
-  RulesManager.renderRulesList();
-  UIState.updateStatistics();
-  UIState.loadGuideState(); // 加载指引展开状态
+  if (window.RulesManager?.renderRulesList) window.RulesManager.renderRulesList();
+  if (window.UIState?.updateStatistics) window.UIState.updateStatistics();
+  if (window.UIState?.loadGuideState) window.UIState.loadGuideState(); // 加载指引展开状态
 
   // 初始化后端系统（若后端加载失败则跳过，UI仍可显示）
   try {
@@ -663,7 +663,7 @@ function setupEventHandlers() {
   $(document).on('change', '.rl-rule-enabled', function () {
     const ruleId = $(this).closest('.rl-rule-item').data('rule-id');
     const enabled = $(this).prop('checked');
-    RulesManager.toggleRule(ruleId, enabled);
+    window.RulesManager?.toggleRule?.(ruleId, enabled);
   });
 
   $(document).on('click', '.rl-edit-rule', function () {
@@ -676,7 +676,7 @@ function setupEventHandlers() {
     const rule = UIState.rules.find(r => r.id === ruleId);
 
     if (confirm(`确定要删除规则"${rule.name}"吗？`)) {
-      RulesManager.deleteRule(ruleId);
+      window.RulesManager?.deleteRule?.(ruleId);
     }
   });
 
