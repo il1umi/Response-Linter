@@ -2,7 +2,7 @@
 
 一个强大的 SillyTavern 扩展，用于实时监控和智能修复 AI 回复格式。
 
-![版本](https://img.shields.io/badge/版本-1.3.4-blue.svg)
+![版本](https://img.shields.io/badge/版本-1.4.0-blue.svg)
 ![许可证](https://img.shields.io/badge/许可证-AGPL--3.0-blue.svg)
 ![SillyTavern](https://img.shields.io/badge/SillyTavern-兼容-brightgreen.svg)
 
@@ -46,13 +46,13 @@ Response-Linter/
 └── 📄 LICENSE                        # 许可证文件
 ```
 
-### 🆕 v1.3 更新摘要
+### 🆕 v1.4 更新摘要
 
-- 修复：ConfigWizardUI 顶层事件绑定导致的语法错误；将绑定移入类方法内
-- 修复：配置向导按钮的事件绑定兼容性，避免旧环境可选链解析问题
-- 增强：统一使用 getContext().callGenericPopup（带全局回退）展示标准弹窗
-- 增强：配置向导与规则编辑器的“修复规则”弹窗统一化，交互一致
-- 文档：README 与 manifest 版本更新到 1.3.2
+- 修复：稳定获取 getContext，解决 ReferenceError 导致的消息修改失败
+- 修复：消息修改会同步写入 message.mes，并在成功后触发轻量保存，刷新后仍然生效
+- 增强：updateMessageBlock 调用桥按优先级回退，兼容更多环境
+- 修复：放宽规则保存前置检查并镜像设置，提升导入与编辑规则的保存成功率
+- 文档：README 与 manifest 版本更新到 1.4.0
 
 ## 🚀 快速开始
 
