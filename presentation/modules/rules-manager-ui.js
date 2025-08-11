@@ -267,8 +267,12 @@ export class RulesManagerUI {
    */
   saveRules() {
     try {
-      if (!this.uiState || !window.extension_settings || !this.controller) {
-        console.warn('保存规则：必需的对象未初始化');
+      // 放宽前置检查：允许在 backendController 未就绪时也能保存到设置
+      // 仅当 UIState 或 设置根对象缺失时才放弃保存
+      const ctx = (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null);
+      const settingsRoot = ctx?.extensionSettings || window.extension_settings;
+      if (!this.uiState || !settingsRoot) {
+        console.warn('[Response Linter] 保存规则失败：UIState 或 扩展设置未就绪');
         return;
       }
 
@@ -282,20 +286,17 @@ export class RulesManagerUI {
         return { ...rule, requiredContent: enabledTags };
       });
 
-      // 保存到扩展设置（通过 getContext() 的稳定入口）
-      const ctx = (typeof getContext === 'function') ? getContext() : null;
-      const settingsRoot = ctx?.extensionSettings || window.extension_settings;
-      if (!settingsRoot) {
-        console.warn('[Response Linter] 无法取得扩展设置对象，放弃保存');
-        return;
-      }
+      // 保存到扩展设置
       settingsRoot[extensionName] = settingsRoot[extensionName] || {};
-      settingsRoot[extensionName].rules = this.uiState.rules;
+      const targetSettings = settingsRoot[extensionName];
+      targetSettings.rules = Array.isArray(this.uiState.rules) ? this.uiState.rules : [];
 
-      // 同步更新后端规则
-      const latest = settingsRoot[extensionName];
+      // 镜像到 window.extension_settings，避免引用分叉
+      try { if (window.extension_settings) window.extension_settings[extensionName] = targetSettings; } catch {}
+
+      // 可用时同步更新后端规则（若后端尚未就绪则跳过）
       if (this.controller && typeof this.controller.updateSettings === 'function') {
-        this.controller.updateSettings(latest);
+        this.controller.updateSettings(targetSettings);
       }
 
       // 持久化保存（优先使用 getContext().saveSettingsDebounced）
