@@ -298,12 +298,12 @@ export class ConfigWizardUI {
         this.wizardData = {
           requiredContent: ['<thinking>', '</thinking>', '<content>', '</content>'],
           fixStrategy: 'positional',
-          positionalOptions: { doubleNewline: true },
+          positionalOptions: { doubleNewline: false },
           contentOptions: {
-            '<thinking>': { enabled: true, binding: 'default' },
-            '</thinking>': { enabled: true, binding: 'after-previous-tag' },
-            '<content>': { enabled: true, binding: 'after-previous-tag' },
-            '</content>': { enabled: true, binding: 'before-next-tag' },
+            '<thinking>': { enabled: true, actions: [] },
+            '</thinking>': { enabled: true, actions: ['after-prev'] },
+            '<content>': { enabled: true, actions: ['after-prev'] },
+            '</content>': { enabled: true, actions: ['before-next'] },
           },
         };
       } else if (this.selectedMode === 'structured') {
@@ -372,7 +372,7 @@ export class ConfigWizardUI {
       this.wizardData = {
         requiredContent: [],
         fixStrategy: 'positional',
-        positionalOptions: { doubleNewline: true },
+        positionalOptions: { doubleNewline: false },
       };
     } catch (error) {
       console.error('显示自定义选项失败:', error);
@@ -431,12 +431,12 @@ export class ConfigWizardUI {
           this.wizardData = {
             requiredContent: ['<thinking>', '</thinking>', '<content>', '</content>'],
             fixStrategy: 'positional',
-            positionalOptions: { doubleNewline: true },
+            positionalOptions: { doubleNewline: false },
             contentOptions: {
-              '<thinking>': { enabled: true, binding: 'default' },
-              '</thinking>': { enabled: true, binding: 'after-previous-tag' },
-              '<content>': { enabled: true, binding: 'after-previous-tag' },
-              '</content>': { enabled: true, binding: 'before-next-tag' },
+              '<thinking>': { enabled: true, actions: [] },
+              '</thinking>': { enabled: true, actions: ['after-prev'] },
+              '<content>': { enabled: true, actions: ['after-prev'] },
+              '</content>': { enabled: true, actions: ['before-next'] },
             },
           };
           const container = $('#rl-wizard-tags-container');
@@ -500,7 +500,7 @@ export class ConfigWizardUI {
           this.updateWizardData();
         });
 
-      // 初始化渲染现有chips
+      // 初始化渲染现有chips（确保显示 wizardData.contentOptions 中已经保存的动作）
       $('#rl-wizard-tags-container .rl-wizard-tag-row').each((_, el)=>{
         const row = $(el); const text = String(row.find('input.rl-wizard-tag-text').val()||'').trim();
         const opt = (this.wizardData && this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || { enabled:true, actions:[] };
@@ -545,9 +545,19 @@ export class ConfigWizardUI {
         const text = String(row.find('input.rl-wizard-tag-text').val() || '').trim();
         if (!text) return;
         const enabled = !!row.find('input.rl-wizard-tag-enabled').prop('checked');
-        const actions = row.find('.rl-multi-item input:checked').map((_, el)=>$(el).val()).get();
-        const pattern = String(row.find('input.rl-wizard-tag-pattern').val() || '').trim();
-        const replacement = String(row.find('input.rl-wizard-tag-replacement').val() || '');
+
+        // 兼容：当前向导行内没有 .rl-multi-item 复选框（动作用弹窗配置），
+        // 此处应优先沿用 wizardData 中已保存的 actions/pattern/replacement，
+        // 只有当 DOM 中确实存在多选项时才从 DOM 读取
+        const existing = (this.wizardData && this.wizardData.contentOptions && this.wizardData.contentOptions[text]) || {};
+        const actionsFromDom = row.find('.rl-multi-item input:checked').map((_, el)=>$(el).val()).get();
+        const actions = (actionsFromDom && actionsFromDom.length) ? actionsFromDom : (Array.isArray(existing.actions) ? existing.actions : []);
+
+        const patternInput = String(row.find('input.rl-wizard-tag-pattern').val() || '').trim();
+        const replacementInput = String(row.find('input.rl-wizard-tag-replacement').val() || '');
+        const pattern = patternInput || existing.pattern || '';
+        const replacement = (replacementInput !== '') ? replacementInput : (typeof existing.replacement === 'string' ? existing.replacement : '');
+
         requiredContent.push(text);
         contentOptions[text] = {
           enabled, actions,
@@ -618,7 +628,7 @@ export class ConfigWizardUI {
 
       this.wizardData = {
         ...structuredData[type],
-        positionalOptions: { doubleNewline: true },
+        positionalOptions: { doubleNewline: false },
       };
     } catch (error) {
       console.error('选择结构化类型失败:', error);
@@ -800,13 +810,16 @@ export class ConfigWizardUI {
             `;
 
             if (result.missingContent && result.missingContent.length > 0) {
-              errorHtml += `<p><strong>缺失内容：</strong>${result.missingContent.join(', ')}</p>`;
+              const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+              const missingEsc = result.missingContent.map(esc).join(', ');
+              errorHtml += `<p><strong>缺失内容：</strong>${missingEsc}</p>`;
             }
 
             if (result.errorDetails && result.errorDetails.length > 0) {
+              const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
               errorHtml += `<p><strong>详细信息：</strong></p><ul>`;
               result.errorDetails.forEach(detail => {
-                errorHtml += `<li>${detail.message}</li>`;
+                errorHtml += `<li>${esc(detail.message || '')}</li>`;
               });
               errorHtml += `</ul>`;
             }

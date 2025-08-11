@@ -361,19 +361,53 @@ function escapeHtml(text) {
 // 所有功能已完整迁移到ConfigWizardUI模块中
 
 // 设置管理
-function loadSettings() {
+async function loadSettings() {
   // 如果设置不存在则初始化
   extension_settings[extensionName] = extension_settings[extensionName] || {};
   if (Object.keys(extension_settings[extensionName]).length === 0) {
     Object.assign(extension_settings[extensionName], defaultSettings);
   }
 
-  const settings = extension_settings[extensionName];
+  // 通过 getContext() 取最新设置根，避免被窗口级对象覆盖
+  const ctx = __getCtx();
+  const settingsRoot = ctx?.extensionSettings || extension_settings;
 
-  // 更新UI状态
-  UIState.isExtensionEnabled = settings.enabled;
-  UIState.isAutoFixEnabled = settings.autoFix;
-  UIState.rules = settings.rules || [];
+  // 从 accountStorage 读取备份（若存在且主源缺失），避免版本更新或时序覆盖导致丢失
+  try {
+    const acc = ctx?.accountStorage;
+    const backupJson = acc?.getItem?.('response_linter_settings');
+    if (!settingsRoot[extensionName] && backupJson) {
+      const backup = JSON.parse(backupJson);
+      settingsRoot[extensionName] = backup;
+      console.info('[Response Linter] 从 accountStorage 备份恢复设置');
+    }
+  } catch (e) { console.warn('[Response Linter] 读取 accountStorage 备份失败', e); }
+
+  let settings = settingsRoot[extensionName] = settingsRoot[extensionName] || extension_settings[extensionName] || null;
+
+  // 若主源缺失，尝试从 data/files 恢复一份备份
+  if (!settings) {
+    try {
+      const backup = await tryLoadSettingsFromDataFile();
+      if (backup && typeof backup === 'object') {
+        settings = settingsRoot[extensionName] = backup;
+        console.info('[Response Linter] 已从 data/files 备份恢复扩展设置');
+      }
+    } catch (e) { /* 忽略恢复失败 */ }
+  }
+
+  // 兜底：仍不存在则填充默认
+  if (!settings) {
+    settings = settingsRoot[extensionName] = JSON.parse(JSON.stringify(defaultSettings));
+  }
+
+  // 双向镜像，确保 window 与 getContext() 指向同一份数据
+  try { if (window.extension_settings) window.extension_settings[extensionName] = settings; } catch (e) {}
+
+  // 更新UI状态（引用相同 settings 对象，避免两个源产生分叉）
+  UIState.isExtensionEnabled = !!settings.enabled;
+  UIState.isAutoFixEnabled = !!settings.autoFix;
+  UIState.rules = Array.isArray(settings.rules) ? settings.rules : [];
 
   // 更新UI控件
   $('#rl-enabled').prop('checked', settings.enabled);
@@ -388,37 +422,101 @@ function loadSettings() {
   if (window.UIState?.updateStatistics) window.UIState.updateStatistics();
   if (window.UIState?.loadGuideState) window.UIState.loadGuideState(); // 加载指引展开状态
 
-  // 初始化后端系统（若后端加载失败则跳过，UI仍可显示）
+  // 初始化/更新后端系统（若后端加载失败则跳过，UI仍可显示）
   try {
     if (!backendController) throw new Error('backendController未就绪');
-    backendController.initialize(settings);
+
+    // 若已初始化，则仅更新设置；否则执行初始化
+    if (backendController.isInitialized) {
+      backendController.updateSettings(settings);
+    } else {
+      backendController.initialize(settings);
+    }
     window.backendController = backendController;
   } catch (e) {
     console.warn('[Response Linter] 后端未就绪，UI先行加载。某些功能不可用。', e);
   }
+  console.info('[Response Linter] loadSettings() 已应用设置到后端 (initialized:', backendController?.isInitialized, ')');
+
+  // 确保消息监听在启用且存在规则时激活（避免早期初始化失败导致无监听）
+  try {
+    if (backendController && settings.enabled && (settings.rules||[]).some(r=>r.enabled)) {
+      backendController.start?.();
+    }
+  } catch (e) { console.warn('[Response Linter] 后端启动回退失败:', e); }
 }
 
 function saveSettings() {
-  const settings = extension_settings[extensionName];
+  const ctx = __getCtx();
+  const settingsRoot = ctx?.extensionSettings || extension_settings;
+  settingsRoot[extensionName] = settingsRoot[extensionName] || window.extension_settings?.[extensionName] || JSON.parse(JSON.stringify(defaultSettings));
+  const settings = settingsRoot[extensionName];
 
-  settings.enabled = UIState.isExtensionEnabled;
-  settings.autoFix = UIState.isAutoFixEnabled;
+  settings.enabled = !!UIState.isExtensionEnabled;
+  settings.autoFix = !!UIState.isAutoFixEnabled;
   settings.defaultAutoFixAction = $('#rl-default-auto-fix-action').val() || 'apply';
+  settings.notifications = settings.notifications || { duration: 5, showSuccess: true };
   settings.notifications.duration = parseInt($('#rl-notification-duration').val());
   settings.notifications.showSuccess = $('#rl-show-success').prop('checked');
+  settings.rules = Array.isArray(UIState.rules) ? UIState.rules : (settings.rules || []);
 
   // 同步更新后端设置（后端可能尚未就绪）
   try {
     if (!backendController) throw new Error('backendController未就绪');
     backendController.updateSettings(settings);
+    console.info('[Response Linter] updateSettings() 已提交设置到后端');
   } catch (e) {
     console.warn('[Response Linter] 后端未就绪，暂不更新后端设置');
   }
 
-  saveSettingsDebounced();
+  // 镜像到 window.extension_settings，避免界面其它地方读取旧引用
+  try { if (window.extension_settings) window.extension_settings[extensionName] = settings; } catch (e) {}
+
+  // 额外：写入 accountStorage 备份，保证跨版本/覆盖安全
+  try {
+    const acc = ctx?.accountStorage;
+    if (acc?.setItem) acc.setItem('response_linter_settings', JSON.stringify(settings));
+  } catch (e) { console.warn('[Response Linter] 写入 accountStorage 备份失败', e); }
+
+  const saveFn = ctx?.saveSettingsDebounced || saveSettingsDebounced;
+  if (typeof saveFn === 'function') { saveFn(); console.info('[Response Linter] saveSettingsDebounced() 已触发'); }
+  // 额外：将设置备份到 SillyTavern/data/files（/user/files）
+  try { void persistSettingsToDataFile(settings); } catch (e) { console.warn('[Response Linter] 备份到 data/files 失败', e); }
 }
 
 // 后端事件处理器
+
+// ===== SillyTavern/data/files 备份与恢复 =====
+async function persistSettingsToDataFile(settings){
+  try {
+    const ctx = __getCtx();
+    const headers = ctx?.getRequestHeaders ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' };
+    const json = JSON.stringify(settings);
+    // 文本→Base64（UTF-8）
+    const base64 = btoa(unescape(encodeURIComponent(json)));
+    await fetch('/api/files/upload', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'response-linter_settings.json', data: base64 }),
+    });
+    console.info('[Response Linter] 设置已备份到 data/files/response-linter_settings.json');
+  } catch (e) {
+    console.warn('[Response Linter] persistSettingsToDataFile 失败', e);
+  }
+}
+
+async function tryLoadSettingsFromDataFile(){
+  try {
+    const resp = await fetch('/user/files/response-linter_settings.json', { method: 'GET' });
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    // 兼容服务器可能以 text 形式返回
+    try { return JSON.parse(text); } catch { return null; }
+  } catch (e) {
+    return null;
+  }
+}
+
 function setupBackendEventHandlers() {
   // 监听验证失败事件
   document.addEventListener('responseLinter.validationFailed', event => {
@@ -515,12 +613,13 @@ function setupEventHandlers() {
 
   // 通知设置
   $('#rl-notification-duration').on('input', function () {
-  $('#rl-default-auto-fix-action').on('change', saveSettings);
-
     const value = $(this).val();
     $('#rl-duration-display').text(value + '秒');
     saveSettings();
   });
+
+  // 自动修复默认行为（独立绑定）
+  $('#rl-default-auto-fix-action').on('change', saveSettings);
 
   $('#rl-show-success').on('change', saveSettings);
 
@@ -856,8 +955,43 @@ jQuery(async () => {
     }
 
 
-    // 🔧 加载设置（两种模式都需要）
-    loadSettings();
+    // 🔧 加载设置：等待酒馆把 extension_settings 从服务器加载完成后再读取，避免我们用默认值覆盖后又被酒馆覆盖导致“设置重置”
+    try {
+      const ctx = __getCtx();
+      const es = ctx?.eventSource;
+      const et = ctx?.eventTypes || ctx?.event_types; // 兼容早期别名
+
+      const tryImmediate = () => {
+        const hasExtSettings = !!(ctx?.extensionSettings && Object.keys(ctx.extensionSettings).length);
+        if (hasExtSettings) {
+          console.info('[Response Linter] settings detected immediately -> loadSettings');
+          loadSettings();
+          return true;
+        }
+        return false;
+      };
+
+      if (!tryImmediate() && es && et) {
+        console.info('[Response Linter] wait for EXTENSION_SETTINGS_LOADED');
+        es.once(et.EXTENSION_SETTINGS_LOADED, () => {
+          console.info('[Response Linter] EXTENSION_SETTINGS_LOADED -> loadSettings');
+          loadSettings();
+        });
+        // 兜底：若扩展事件错过，再等全局 SETTINGS_LOADED
+        es.once(et.SETTINGS_LOADED, () => {
+          console.info('[Response Linter] SETTINGS_LOADED -> loadSettings (fallback)');
+          loadSettings();
+        });
+      }
+
+      // 最后兜底：5秒后仍未触发事件，则强行尝试一次
+      setTimeout(() => {
+        tryImmediate() || (console.warn('[Response Linter] fallback delayed loadSettings()'), loadSettings());
+      }, 5000);
+    } catch (e) {
+      console.warn('[Response Linter] settings load deferral failed, calling loadSettings directly');
+      loadSettings();
+    }
 
     // 🎯 暴露全局访问点用于调试
     window.ResponseLinter = window.ResponseLinter || {};

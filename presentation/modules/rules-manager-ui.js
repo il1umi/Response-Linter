@@ -282,15 +282,26 @@ export class RulesManagerUI {
         return { ...rule, requiredContent: enabledTags };
       });
 
-      // 保存到扩展设置
-      window.extension_settings[extensionName].rules = this.uiState.rules;
+      // 保存到扩展设置（通过 getContext() 的稳定入口）
+      const ctx = (typeof getContext === 'function') ? getContext() : null;
+      const settingsRoot = ctx?.extensionSettings || window.extension_settings;
+      if (!settingsRoot) {
+        console.warn('[Response Linter] 无法取得扩展设置对象，放弃保存');
+        return;
+      }
+      settingsRoot[extensionName] = settingsRoot[extensionName] || {};
+      settingsRoot[extensionName].rules = this.uiState.rules;
 
       // 同步更新后端规则
-      this.controller.updateSettings(window.extension_settings[extensionName]);
+      const latest = settingsRoot[extensionName];
+      if (this.controller && typeof this.controller.updateSettings === 'function') {
+        this.controller.updateSettings(latest);
+      }
 
-      // 保存设置
-      if (window.saveSettingsDebounced) {
-        window.saveSettingsDebounced();
+      // 持久化保存（优先使用 getContext().saveSettingsDebounced）
+      const saveFn = ctx?.saveSettingsDebounced || window.saveSettingsDebounced;
+      if (typeof saveFn === 'function') {
+        saveFn();
       }
     } catch (error) {
       console.error('保存规则失败:', error);

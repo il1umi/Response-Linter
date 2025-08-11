@@ -223,9 +223,11 @@ export class ValidationFunctionsUI {
   generateErrorDetailsHtml(result) {
     try {
       if (!result.errorDetails || result.errorDetails.length === 0) {
-        // 向后兼容：如果没有详细错误信息，使用简单格式
+        // 向后兼容：如果没有详细错误信息，使用简单格式（对标签做HTML转义，避免被浏览器吞掉）
+        const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        const missingEsc = Array.isArray(result.missingContent) ? result.missingContent.map(esc).join(', ') : '';
         return `<div class="rl-error-position">
-                  <strong>缺失内容：</strong>${result.missingContent.join(', ')}
+                  <strong>缺失内容：</strong>${missingEsc}
                 </div>`;
       }
 
@@ -233,11 +235,12 @@ export class ValidationFunctionsUI {
 
       for (const detail of result.errorDetails) {
         if (detail.type === 'missing') {
+          const esc = s => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
           html += `<div class="rl-error-position">
-                     <strong>缺失标签：</strong><span class="rl-error-code">${detail.item}</span>
+                     <strong>缺失标签：</strong><span class="rl-error-code">${esc(detail.item)}</span>
                    </div>
                    <div class="rl-suggested-fix">
-                     <strong>修复建议：</strong>${detail.suggestedFix}
+                     <strong>修复建议：</strong>${esc(detail.suggestedFix)}
                    </div>`;
         } else if (detail.type === 'order') {
           html += `<div class="rl-error-position">

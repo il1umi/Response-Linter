@@ -41,12 +41,12 @@ export class BackendController {
    */
   initialize(settings) {
     if (this.isInitialized) {
-      console.warn('后端控制器已初始化');
+      console.warn('[Response Linter] 后端控制器已初始化');
       return;
     }
 
     try {
-      console.log('初始化Response Linter后端系统（包含修复功能）');
+      console.log('[Response Linter] 初始化后端系统（包含修复功能）');
 
       // 初始化验证引擎
       const activeRules = (settings.rules || []).filter(rule => rule.enabled);
@@ -64,9 +64,9 @@ export class BackendController {
       }
 
       this.isInitialized = true;
-      console.log('后端系统初始化完成');
+      console.log('[Response Linter] 后端系统初始化完成');
     } catch (error) {
-      console.error('后端系统初始化失败:', error);
+      console.error('[Response Linter] 后端系统初始化失败:', error);
       this.isInitialized = false;
     }
   }
@@ -76,19 +76,19 @@ export class BackendController {
    */
   start() {
     if (this.isRunning) {
-      console.warn('后端服务已在运行');
+      console.warn('[Response Linter] 后端服务已在运行');
       return;
     }
 
     try {
       // 启动消息监听
-      messageHandler.startListening();
+      messageHandler.startListening(); // 内部会打印 [Response Linter] 消息处理器开始监听事件
       this.isRunning = true;
 
-      console.log('Response Linter后端服务已启动');
+      console.log('[Response Linter] 后端服务已启动');
       this._dispatchStatusEvent('backendStarted');
     } catch (error) {
-      console.error('启动后端服务失败:', error);
+      console.error('[Response Linter] 启动后端服务失败:', error);
       this.isRunning = false;
     }
   }
@@ -106,10 +106,10 @@ export class BackendController {
       messageHandler.stopListening();
       this.isRunning = false;
 
-      console.log('Response Linter后端服务已停止');
+      console.log('[Response Linter] 后端服务已停止');
       this._dispatchStatusEvent('backendStopped');
     } catch (error) {
-      console.error('停止后端服务失败:', error);
+      console.error('[Response Linter] 停止后端服务失败:', error);
     }
   }
 
@@ -141,9 +141,9 @@ export class BackendController {
         }
       }
 
-      console.log('后端设置已更新');
+      console.log('[Response Linter] 后端设置已更新');
     } catch (error) {
-      console.error('更新后端设置失败:', error);
+      console.error('[Response Linter] 更新后端设置失败:', error);
     }
   }
 

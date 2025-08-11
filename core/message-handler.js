@@ -19,16 +19,43 @@ export class MessageHandler {
   /**
    * 开始监听消息事件
    */
-  startListening() {
+  async startListening() {
     if (this.isListening) {
       console.warn('消息处理器已在监听中');
       return;
     }
 
     try {
-      const ctx = __getCtx();
-      if (!ctx || !ctx.eventSource || !ctx.event_types) {
-        console.error('无法获取事件系统：getContext().eventSource/event_types 不可用');
+      const getSys = async () => {
+        let ctx = __getCtx();
+        if (!ctx) {
+          try {
+            // 动态导入 ST 的扩展桥接，获取 getContext()
+            const mod = await import('../../../../extensions.js');
+            if (typeof mod?.getContext === 'function') ctx = mod.getContext();
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[Response Linter] 无法动态导入 extensions.js 获取 getContext()', e);
+          }
+        }
+        if (!ctx) return null;
+        const es = ctx.eventSource;
+        const et = ctx.eventTypes || ctx.event_types;
+        return (es && et) ? { ctx, eventSource: es, event_types: et } : null;
+      };
+
+      let sys = await getSys();
+      if (!sys) {
+        // 等待事件系统就绪（最多等待 10s，间隔 250ms）
+        const deadline = Date.now() + 10000;
+        while (!sys && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 250));
+          sys = await getSys();
+        }
+      }
+
+      if (!sys) {
+        console.error('[Response Linter] 无法获取事件系统：getContext().eventSource/event_types 不可用');
         return;
       }
 
@@ -37,18 +64,45 @@ export class MessageHandler {
         this._handleMessageRendered(messageId);
       };
 
-      // 使用makeLast确保在所有其他处理器之后执行
-      ctx.eventSource.makeLast(ctx.event_types.CHARACTER_MESSAGE_RENDERED, messageRenderedHandler);
+      // 绑定消息渲染事件：优先使用 makeLast，确保在其他监听器之后执行；否则回退到 on
+      const bindMethod = (typeof sys.eventSource.makeLast === 'function') ? 'makeLast' : 'on';
+      sys.eventSource[bindMethod](sys.event_types.CHARACTER_MESSAGE_RENDERED, messageRenderedHandler);
+
+
+      // 兜底绑定：在 APP_READY 事件触发时再次绑定一次，防止初始化顺序问题
+      try {
+        const onAppReady = () => {
+          try {
+            const bm = (typeof sys.eventSource.makeLast === 'function') ? 'makeLast' : 'on';
+            sys.eventSource[bm](sys.event_types.CHARACTER_MESSAGE_RENDERED, messageRenderedHandler);
+          } catch(e){}
+        };
+        if (typeof sys.eventSource.once === 'function' && sys.event_types?.APP_READY) {
+          sys.eventSource.once(sys.event_types.APP_READY, onAppReady);
+          this.eventListeners.push({ event: sys.event_types.APP_READY, handler: onAppReady });
+        }
+      } catch(e){}
 
       this.eventListeners.push({
-        event: ctx.event_types.CHARACTER_MESSAGE_RENDERED,
+        event: sys.event_types.CHARACTER_MESSAGE_RENDERED,
         handler: messageRenderedHandler,
       });
 
+      // 可选诊断：监听 MESSAGE_RECEIVED（不改变逻辑，仅帮助定位事件时序），仅在控制台输出
+      try {
+        if (sys.event_types?.MESSAGE_RECEIVED && typeof sys.eventSource.on === 'function') {
+          sys.eventSource.on(sys.event_types.MESSAGE_RECEIVED, (id, type) => {
+            try { console.debug('[Response Linter][diag] MESSAGE_RECEIVED', id, type); } catch {}
+          });
+          this.eventListeners.push({ event: sys.event_types.MESSAGE_RECEIVED, handler: (id,type)=>{} });
+        }
+      } catch {}
+
+
       this.isListening = true;
-      console.log('消息处理器开始监听事件');
+      console.log('[Response Linter] 消息处理器开始监听事件');
     } catch (error) {
-      console.error('启动消息监听失败:', error);
+      console.error('[Response Linter] 启动消息监听失败:', error);
     }
   }
 
@@ -69,9 +123,9 @@ export class MessageHandler {
       });
       this.eventListeners = [];
       this.isListening = false;
-      console.log('消息处理器停止监听');
+      console.log('[Response Linter] 消息处理器停止监听');
     } catch (error) {
-      console.error('停止消息监听失败:', error);
+      console.error('[Response Linter] 停止消息监听失败:', error);
     }
   }
 
@@ -161,9 +215,10 @@ export class MessageHandler {
    * @param {string} messageId - 消息ID
    * @returns {Object|null} 消息数据或null
    */
+
   extractMessage(messageId) {
     try {
-      const context = getContext();
+      const context = __getCtx?.() || window.getContext?.() || null;
 
       if (!context || !context.chat || !Array.isArray(context.chat)) {
         console.warn('无法获取聊天上下文');
@@ -180,6 +235,17 @@ export class MessageHandler {
 
       // 提取消息内容（优先使用display_text）
       const content = message.extra?.display_text || message.mes || '';
+
+      // 兜底：若按ID查找失败且 id 是数字字符串，按索引直接访问
+      const tryIdx = Number.parseInt(messageId, 10);
+      if (!message && Number.isInteger(tryIdx) && tryIdx >= 0 && tryIdx < context.chat.length) {
+        const m = context.chat[tryIdx];
+        const c = (m?.extra?.display_text || m?.mes || '').trim();
+        return {
+          id: String(tryIdx), content: c, name: m?.name || 'Unknown', isUser: !!m?.is_user, isSystem: !!m?.is_system,
+          timestamp: m?.send_date || new Date().toISOString(), raw: m,
+        };
+      }
 
       return {
         id: messageId,
@@ -202,7 +268,7 @@ export class MessageHandler {
    */
   getLatestAIMessage() {
     try {
-      const context = getContext();
+      const context = __getCtx?.() || window.getContext?.() || null;
 
       if (!context?.chat?.length) {
         return null;

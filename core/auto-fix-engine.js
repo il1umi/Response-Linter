@@ -95,14 +95,14 @@ export class ThinkingContentFixStrategy extends FixStrategy {
       const trimmedAfter = afterThinking.trim();
 
       if (trimmedAfter.length > 0 && !trimmedAfter.startsWith('<content>')) {
-        // 如果有内容但没有 <content> 标签，添加标签包围
+        // 如果有内容但没有 <content> 标签：仅保证标签独占行（不强制插入空行），满足“两个标签不同行”的新规范
         const needsContentEnd = missingItems.includes('</content>');
-        const contentStart = '\n\n<content>\n';
+        const contentStart = '\n<content>\n';
         const contentEnd = needsContentEnd ? '\n</content>' : '';
-
-        return beforeThinking + contentStart + trimmedAfter + contentEnd;
+        const body = String(trimmedAfter).replace(/\s+$/, '');
+        return beforeThinking + contentStart + body + (body.endsWith('\n') ? '' : '\n') + contentEnd;
       } else if (trimmedAfter.length === 0) {
-        // 如果 </thinking> 后没有内容，添加空的 content 标签
+        // 如果 </thinking> 后没有内容，添加空的 content 标签（留出一行供模型填充）
         return beforeThinking + '\n\n<content>\n\n</content>';
       }
 
@@ -245,7 +245,7 @@ export class PositionalFixStrategy extends FixStrategy {
   constructor(options = {}) {
     super('positional', '位置感知修复策略');
     this.options = {
-      doubleNewline: true, // 默认使用双换行符
+      doubleNewline: false, // 默认不强制双空行：仅保证标签独占一行
       mode: options.mode || null, // 可为 'after-prev' | 'before-next' | null
       ...options,
     };
@@ -417,17 +417,16 @@ export class PositionalFixStrategy extends FixStrategy {
 
     // 根据位置类型添加换行符
     if (addNewlines) {
+      // doubleNewline=true：在标签两侧都留出一个空行
       switch (position.type) {
         case 'after-thinking':
-          insertText = `\n\n${item}\n`;
+          insertText = `\n${item}\n`;
           break;
         case 'before-next-tag':
-          // 在下一个标签“前”插入：确保前面留双换行
-          insertText = `\n\n${item}`;
+          insertText = `\n\n${item}\n\n`;
           break;
         case 'after-prev-tag':
-          // 在上一个标签“后”插入：确保后面留双换行
-          insertText = `\n\n${item}`;
+          insertText = `\n\n${item}\n\n`;
           break;
         case 'end-tag':
           insertText = `\n${item}`;
@@ -438,6 +437,9 @@ export class PositionalFixStrategy extends FixStrategy {
         default:
           insertText = `\n${item}\n`;
       }
+    } else {
+      // doubleNewline=false：仅保证“标签独占一行”。不要在此处提前 return，以便下面的“搬运正文进入成对标签”逻辑能够执行
+      insertText = `\n${item}\n`;
     }
 
     // 当仅缺起始或仅缺结束造成空壳时，尝试将紧邻的独立数字或文本包裹进刚插入的成对标签
@@ -454,19 +456,77 @@ export class PositionalFixStrategy extends FixStrategy {
             const openTag = `<${tagName}>`;
             const closeTag = `</${tagName}>`;
             const afterInsert = content.slice(0, index) + insertText + content.slice(index);
-            // 如果两端标签都存在但中间是简单的“\n数字\n”或“\n文本\n”，则尝试包裹
-            const pattern = new RegExp(`${openTag}\s*([\u4e00-\u9fa5A-Za-z0-9_]+)\s*${closeTag}`);
-            if (!pattern.test(afterInsert)) {
-              // 查找 “openTag ... closeTag” 的相邻形态并包裹最近的简单片段
-              const near = new RegExp(`(${openTag})\s*([0-9A-Za-z]+)\s*(${closeTag})`);
-              const wrapped = afterInsert.replace(near, (_, a, mid, b) => `${a}${mid}${b}`);
-              if (wrapped !== afterInsert) return wrapped;
+            // 1) 若两端相邻：包裹 openTag ... closeTag 之间的简短片段（并确保闭合前换行），兼容中文/英文/数字/下划线，长度<=30
+            const near = new RegExp(`(${openTag})\s*([\u4e00-\u9fa5A-Za-z0-9_]{1,30})\s*(${closeTag})`);
+            const wrapped = afterInsert.replace(near, (_, a, mid, b) => `${a}${mid}\n${b}`);
+            if (wrapped !== afterInsert) return wrapped;
+
+            // 2) 若存在“简短文本在 openTag 之上一行”的形态：将其搬入 open/close 之间
+            // 形如：上一行短文本+下一行 openTag；仅当本次插入的是 closeTag 且刚好补在末尾时尝试
+            if (mClose) {
+              const endClosed = new RegExp(`${closeTag}\s*$`);
+              if (endClosed.test(afterInsert)) {
+                const withoutAppendedClose = afterInsert.replace(endClosed, '');
+
+                // 优先处理“openTag 在下方、上方一行是短文本”的形态
+                const movedPattern = new RegExp(`([\n\r])([^\n\r<>]{1,30})[\t ]*\r?\n(${openTag})`);
+                let moved = withoutAppendedClose.replace(movedPattern, (_, br, txt, open) => {
+                  const safe = String(txt).trim();
+                  if (!safe || /[<>]/.test(safe)) return _; // 安全检查
+                  return `${br}${open}\n${safe}\n`;
+                });
+
+                // 如果仍未变化，再尝试“openTag 与短文本同一行”的场景："<block> 1" → 三行
+                if (moved === withoutAppendedClose) {
+                  const sameLinePattern = new RegExp(`(${openTag})[\t ]+([^\n\r<>]{1,30})`);
+                  moved = withoutAppendedClose.replace(sameLinePattern, (_, open, txt) => `${open}\n${String(txt).trim()}\n`);
+                }
+
+                if (moved !== withoutAppendedClose) {
+                  return moved + `\n${closeTag}`; // 在 openTag 后补回 closeTag，形成三行
+                }
+              }
             }
           }
         }
       }
     } catch {}
 
+
+    // 额外增强：当插入的是“开始标签”且其后方存在对应的结束标签时，
+    // 将“上一个必需标签之后、插入点之前”的整段内容搬入到新插入的开始标签之后，
+    // 以便在复杂长文本场景下形成 <tag>\n(整段内容)\n</tag>
+    try {
+      if (typeof item === 'string') {
+        const mOpen = item.match(/^<([a-zA-Z0-9_-]+)>$/);
+        if (mOpen) {
+          const tagName = mOpen[1];
+          const closeTag = `</${tagName}>`;
+          const closePos = content.indexOf(closeTag, index);
+          if (closePos !== -1) {
+            // 找“上一个期望标签”的结束位置作为段首
+            const prevEnd = (typeof this._findPreviousExpectedTag === 'function') ? this._findPreviousExpectedTag(content, item) : -1;
+            if (prevEnd !== -1 && prevEnd <= index) {
+              const head = content.slice(0, prevEnd);
+              const moved = content.slice(prevEnd, index);
+              const tail = content.slice(index);
+
+              // 规范 moved：去掉开头多余空行；若 moved 为空则不插入空行；否则保证其末尾只有一个换行
+              let movedBody = moved.replace(/^[\t ]*\r?\n+/, '');
+              if (movedBody.length > 0) {
+                movedBody = movedBody.replace(/\n+$/, '\n');
+              }
+
+              // 归一化 head 与 insertText 的边界，避免多余空行
+              const headNorm = this.options.doubleNewline ? head : head.replace(/\n{2,}$/, '\n');
+              const insNorm = this.options.doubleNewline ? insertText : insertText.replace(/^\n{2,}/, '\n').replace(/\n{2,}$/, '\n');
+              const result = headNorm + insNorm + movedBody + tail.replace(/^\n{2,}/, '\n');
+              return result;
+            }
+          }
+        }
+      }
+    } catch {}
 
     return content.slice(0, index) + insertText + content.slice(index);
   }
@@ -701,8 +761,12 @@ export class AutoFixEngine {
         if (next !== current && strategy.validate(next, missingItems)) {
           executed.push(strategy.name);
           current = next;
+          // 更新缺失项：只保留仍未满足的项，避免后续策略重复插入同一标签
+          if (Array.isArray(missingItems)) {
+            missingItems = missingItems.filter(it => !current.includes(it));
+          }
           // 轻量重新评估：若所有缺失项已满足则可提前结束
-          const allOk = missingItems.every(it => current.includes(it));
+          const allOk = Array.isArray(missingItems) ? missingItems.length === 0 : true;
           if (allOk) break;
         }
       }
