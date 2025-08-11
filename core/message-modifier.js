@@ -2,7 +2,9 @@
 // 基于SillyTavern的updateMessageBlock实现安全的消息内容修改和DOM更新
 
 // 统一通过 getContext() 与宿主交互，避免直接导入 extensions.js
-const __getCtx = () => { try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; } };
+// 优先从 st-context.js 模块导入以避免全局未暴露导致的 ReferenceError
+import { getContext as ST_getContext } from '../../../../st-context.js';
+const __getCtx = () => { try { if (typeof getContext === 'function') return getContext(); if (typeof ST_getContext === 'function') return ST_getContext(); return (window.getContext ? window.getContext() : null); } catch { return null; } };
 
 /**
  * 修改历史记录数据结构
@@ -354,13 +356,19 @@ export class MessageModifier {
    */
   _getMessage(messageId) {
     try {
-      const context = getContext();
+      const context = __getCtx();
       if (!context?.chat?.length) {
         return null;
       }
 
-      // 通过messageId查找消息
-      const message = context.chat.find(msg => msg.id == messageId || context.chat.indexOf(msg) == messageId);
+      // 通过messageId查找消息：先严格匹配 msg.id，再回退到索引匹配
+      let message = context.chat.find(msg => msg.id == messageId);
+      if (!message) {
+        const idx = Number.parseInt(messageId, 10);
+        if (Number.isInteger(idx) && idx >= 0 && idx < context.chat.length) {
+          message = context.chat[idx];
+        }
+      }
       return message || null;
     } catch (error) {
       console.error('获取消息失败:', error);
