@@ -125,23 +125,27 @@ export class MessageModifier {
       // 记录修改历史
       this._recordModification(messageId, originalContent, newContent, strategy);
 
-      // 获取消息对象
+      // 获取消息对象，允许索引/ID
       const message = this._getMessage(messageId);
       if (!message) {
         throw new Error('无法获取消息对象');
       }
 
-      // 更新消息内容
+      // 更新消息内容（渲染字段 + 数据字段）
       if (message.extra) {
-        message.extra.display_text = newContent;
+        message.extra.display_text = newContent; // 用于 DOM 渲染
       } else {
         message.extra = { display_text: newContent };
       }
+      // 同步更新真实消息文本，保证复制/保存/再验证一致
+      message.mes = newContent;
 
       // 使用SillyTavern的updateMessageBlock更新DOM
       const updateResult = await this._updateMessageBlock(messageId, message);
 
       if (updateResult.success) {
+        // 成功后尝试轻量持久化（若可用）。不阻塞流程。
+        try { const ctx = __getCtx(); await ctx?.saveChat?.({ mesId: Number(messageId) }); } catch (e) { /* ignore */ }
         console.log(`消息修改成功 [${messageId}] - 策略: ${strategy}`);
 
         return {
@@ -185,16 +189,21 @@ export class MessageModifier {
   async _updateMessageBlock(messageId, message) {
     try {
       const ctx = __getCtx();
-      // 优先使用 getContext 暴露的安全入口（若存在）
+      // 1) 优先使用 getContext 暴露的安全入口（ST 官方推荐）
       if (ctx && typeof ctx.updateMessageBlock === 'function') {
         ctx.updateMessageBlock(messageId, message, { rerenderMessage: true });
         return { success: true };
       }
 
-      // 回退：动态导入内部实现（存在耦合风险；尽量避免）
-      const { updateMessageBlock } = await import('../../../../script.js');
-      updateMessageBlock(messageId, message, { rerenderMessage: true });
+      // 2) 回退到全局函数（某些构建会暴露到 window）
+      if (typeof window.updateMessageBlock === 'function') {
+        window.updateMessageBlock(messageId, message, { rerenderMessage: true });
+        return { success: true };
+      }
 
+      // 3) 最后回退：动态导入根级 script.js 的导出（本仓库存在该导出）
+      const { updateMessageBlock } = await import('../../../../../script.js');
+      updateMessageBlock(messageId, message, { rerenderMessage: true });
       return { success: true };
     } catch (error) {
       console.error('调用updateMessageBlock失败:', error);
