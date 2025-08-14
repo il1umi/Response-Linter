@@ -47,15 +47,16 @@ export class FixCoordinator {
    * @param {Object} settings - 配置设置
    */
   initialize(settings) {
-    this.isEnabled = settings.enabled || false;
-    this.autoFixEnabled = settings.autoFix || false;
-    this.requireConfirmation = !settings.autoFix; // 自动修复时不需要确认
+    this.isEnabled = !!settings.enabled;
+    this.autoFixEnabled = !!settings.autoFix;
+    // 由“自动修复默认行为”决定是否需要确认：preview=需要确认；apply=直接应用
+    this.requireConfirmation = (settings?.defaultAutoFixAction === 'preview');
 
     // 启用相关服务
     autoFixEngine.setEnabled(this.isEnabled && this.autoFixEnabled);
     messageModifier.setEnabled(this.isEnabled);
 
-    console.log(`修复协调器已初始化 - 自动修复: ${this.autoFixEnabled ? '启用' : '禁用'}`);
+    console.log(`修复协调器已初始化 - 自动修复: ${this.autoFixEnabled ? '启用' : '禁用'}，默认行为: ${this.requireConfirmation ? '预览确认' : '直接应用'}`);
   }
 
   /**
@@ -63,15 +64,15 @@ export class FixCoordinator {
    * @param {Object} settings - 新设置
    */
   updateSettings(settings) {
-    this.isEnabled = settings.enabled || false;
-    this.autoFixEnabled = settings.autoFix || false;
-    this.requireConfirmation = !settings.autoFix;
+    this.isEnabled = !!settings.enabled;
+    this.autoFixEnabled = !!settings.autoFix;
+    this.requireConfirmation = (settings?.defaultAutoFixAction === 'preview');
 
     // 同步更新相关服务
     autoFixEngine.setEnabled(this.isEnabled && this.autoFixEnabled);
     messageModifier.setEnabled(this.isEnabled);
 
-    console.log(`修复协调器设置已更新 - 自动修复: ${this.autoFixEnabled ? '启用' : '禁用'}`);
+    console.log(`修复协调器设置已更新 - 自动修复: ${this.autoFixEnabled ? '启用' : '禁用'}，默认行为: ${this.requireConfirmation ? '预览确认' : '直接应用'}`);
   }
 
   /**
@@ -121,6 +122,8 @@ export class FixCoordinator {
         createdAt: new Date(),
         status: 'pending',
       };
+
+      try { console.debug('[Response Linter][diag] enqueue fixTask', { id: fixTask.messageId, strat: fixTask.fixStrategy, miss: fixTask.missingItems, contentLen: (fixTask.content||'').length }); } catch {}
 
       // 添加到修复队列
       this._addToQueue(fixTask);
