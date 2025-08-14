@@ -438,10 +438,16 @@ async function loadSettings() {
   }
   console.info('[Response Linter] loadSettings() 已应用设置到后端 (initialized:', backendController?.isInitialized, ')');
 
-  // 确保消息监听在启用且存在规则时激活（避免早期初始化失败导致无监听）
+  // 确保消息监听激活：若启用且有活跃规则则正常启动；否则启动被动监听以便诊断
   try {
-    if (backendController && settings.enabled && (settings.rules||[]).some(r=>r.enabled)) {
-      backendController.start?.();
+    if (backendController) {
+      const hasActiveRules = (settings.rules||[]).some(r=>r.enabled);
+      if (settings.enabled && hasActiveRules) {
+        backendController.start?.();
+      } else if (!backendController.isRunning) {
+        console.info('[Response Linter] 启动被动监听（诊断模式）：扩展未启用或无活跃规则，验证不会执行');
+        backendController.start?.();
+      }
     }
   } catch (e) { console.warn('[Response Linter] 后端启动回退失败:', e); }
 }
@@ -673,6 +679,40 @@ function setupEventHandlers() {
   $('#rl-template-code').on('click', async () => (await ensureRulesManager())?.addTemplate('code'));
   $('#rl-template-qa').on('click', async () => (await ensureRulesManager())?.addTemplate('qa'));
 
+  // 诊断按钮：输出状态并主动尝试启动监听
+  $('#rl-diagnostics').on('click', async () => {
+    try {
+      const ctx = __getCtx();
+      const status = {
+        ctxReady: !!ctx,
+        hasEventSource: !!ctx?.eventSource,
+        hasEventTypes: !!(ctx?.eventTypes || ctx?.event_types),
+        backend: backendController?.getStatus?.() || null,
+      };
+      console.info('[Response Linter][诊断] 当前状态:', status);
+      if (backendController && !backendController.isRunning) {
+        console.info('[Response Linter][诊断] 尝试启动后端监听...');
+        backendController.start?.();
+
+  // 诊断：输出 getContext 可用项
+  try {
+    const ctx = __getCtx();
+    console.info('[Response Linter][诊断] ctx 快照:', {
+      keys: ctx ? Object.keys(ctx).slice(0, 12) : null,
+      typeofCtx: typeof ctx,
+      hasEventSource: !!ctx?.eventSource,
+      hasEventTypes: !!(ctx?.eventTypes || ctx?.event_types),
+      hasRenderTemplate: !!ctx?.renderExtensionTemplateAsync,
+    });
+  } catch {}
+
+      }
+      toastr?.info?.('诊断信息已输出到控制台', '响应检查器');
+    } catch (e) {
+      console.error('[Response Linter][诊断] 失败:', e);
+    }
+  });
+
   // 配置向导事件（懒加载，确保模块已初始化）
   $('#rl-config-wizard').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.show) CW.show(); });
   $('#rl-close-wizard, #rl-wizard-cancel').on('click', async () => { const CW = await ensureConfigWizard(); if (CW && CW.hide) CW.hide(); });
@@ -841,12 +881,21 @@ jQuery(async () => {
     console.log('📂 加载HTML模板...');
     const ctx = __getCtx();
     let settingsHtml, editorHtml;
+    // 计算相对扩展路径（传给 ST 的 renderExtensionTemplateAsync）
+    const extensionNameBase = (() => {
+      try {
+        const m = extensionFolderPath.match(/\/scripts\/extensions\/(.+)$/);
+        return m ? m[1] : 'third-party/Response-Linter';
+      } catch { return 'third-party/Response-Linter'; }
+    })();
+    const templatesBase = `${extensionNameBase}/presentation/templates`;
+
     if (ctx && typeof ctx.renderExtensionTemplateAsync === 'function') {
-      // 使用酒馆标准模板加载
-      settingsHtml = await ctx.renderExtensionTemplateAsync(`${extensionFolderPath}/presentation/templates`, 'settings');
-      editorHtml = await ctx.renderExtensionTemplateAsync(`${extensionFolderPath}/presentation/templates`, 'rule-editor');
+      // 使用酒馆标准模板加载（必须传 scripts/extensions 下的相对路径）
+      settingsHtml = await ctx.renderExtensionTemplateAsync(templatesBase, 'settings');
+      editorHtml = await ctx.renderExtensionTemplateAsync(templatesBase, 'rule-editor');
     } else {
-      // 回退到$.get，保证兼容性
+      // 回退到$.get，保证兼容性（这里可以使用绝对路径）
       settingsHtml = await $.get(`${extensionFolderPath}/presentation/templates/settings.html`);
       editorHtml = await $.get(`${extensionFolderPath}/presentation/templates/rule-editor.html`);
     }

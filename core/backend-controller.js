@@ -82,6 +82,7 @@ export class BackendController {
 
     try {
       // 启动消息监听
+      console.info('[Response Linter] 尝试启动消息监听...');
       messageHandler.startListening(); // 内部会打印 [Response Linter] 消息处理器开始监听事件
       this.isRunning = true;
 

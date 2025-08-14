@@ -263,20 +263,52 @@ export class RulesManagerUI {
   }
 
   /**
-   * 保存规则到扩展设置
+   * 保存规则到扩展设置（容错增强：动态获取 getContext()）
    */
-  saveRules() {
+  async saveRules() {
     try {
-      // 放宽前置检查：允许在 backendController 未就绪时也能保存到设置
-      // 仅当 UIState 或 设置根对象缺失时才放弃保存
-      const ctx = (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null);
-      const settingsRoot = ctx?.extensionSettings || window.extension_settings;
+      // 允许在 backendController 未就绪时保存；仅当 UIState 和 设置根对象均拿不到时才放弃
+      let ctx = null;
+      try { ctx = (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch {}
+      if (!ctx) {
+        try {
+          // 优先绝对路径导入 SillyTavern 扩展桥接
+          const modAbs = await import('/scripts/extensions.js');
+          if (typeof modAbs?.getContext === 'function') ctx = modAbs.getContext();
+        } catch (e1) {
+          try {
+            // 回退相对路径（层级较深时可能无效）
+            const modRel = await import('../../../../../../extensions.js');
+            if (typeof modRel?.getContext === 'function') ctx = modRel.getContext();
+          } catch (e2) {
+            /* 忽略：某些环境不允许直接导入，但仍可依赖 window.extension_settings */
+          }
+        }
+      }
+
+      let settingsRoot = ctx?.extensionSettings || window.extension_settings;
+      if (!settingsRoot) {
+        // 兜底：创建全局扩展设置容器，避免空引用
+        window.extension_settings = window.extension_settings || {};
+        settingsRoot = window.extension_settings;
+      }
+      // 确保 UIState 存在（在部分兼容模式下，模块化未完成时可能为 undefined）
+      if (!this.uiState) {
+        try {
+          if (window.ResponseLinter?.UIState) {
+            this._uiState = window.ResponseLinter.UIState;
+          } else {
+            window.UIState = window.UIState || { rules: [] };
+            this._uiState = window.UIState;
+          }
+        } catch {}
+      }
+
       if (!this.uiState || !settingsRoot) {
         console.warn('[Response Linter] 保存规则失败：UIState 或 扩展设置未就绪');
         return;
       }
 
-      // 获取扩展名称
       const extensionName = 'response-linter';
 
       // 过滤掉被禁用的内容项（contentOptions.enabled=false 的项不参与 requiredContent）
@@ -294,7 +326,7 @@ export class RulesManagerUI {
       // 镜像到 window.extension_settings，避免引用分叉
       try { if (window.extension_settings) window.extension_settings[extensionName] = targetSettings; } catch {}
 
-      // 可用时同步更新后端规则（若后端尚未就绪则跳过）
+      // 同步更新后端规则（若后端尚未就绪则跳过）
       if (this.controller && typeof this.controller.updateSettings === 'function') {
         this.controller.updateSettings(targetSettings);
       }

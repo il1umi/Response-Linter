@@ -1,4 +1,6 @@
 // Response Linter 消息处理器模块
+import { getContext as ST_getContext } from '../../../../st-context.js';
+
 // 负责监听SillyTavern事件、提取消息内容和协调验证流程
 
 // 统一通过 getContext() 与事件系统交互，避免直接导入内部文件
@@ -14,6 +16,10 @@ export class MessageHandler {
     this.eventListeners = [];
     this.processingQueue = [];
     this.isProcessing = false;
+    this.ctxRef = null; // 缓存从 getContext() 获取的上下文
+    this.retryCounts = new Map(); // 消息重试计数，处理上下文尚未就绪等瞬态失败
+    this.rebindTimer = null; // 绑定失败时的周期性重试定时器
+    this.domObserver = null; // DOM 观察器回退方案
   }
 
   /**
@@ -27,20 +33,17 @@ export class MessageHandler {
 
     try {
       const getSys = async () => {
-        let ctx = __getCtx();
+        // 优先使用 ST 提供的 getContext（通过 st-context 模块导出）
+        let ctx = this.ctxRef || __getCtx() || (typeof ST_getContext === 'function' ? ST_getContext() : null);
         if (!ctx) {
-          try {
-            // 动态导入 ST 的扩展桥接，获取 getContext()
-            const mod = await import('../../../../extensions.js');
-            if (typeof mod?.getContext === 'function') ctx = mod.getContext();
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn('[Response Linter] 无法动态导入 extensions.js 获取 getContext()', e);
-          }
+          try { console.debug('[Response Linter][diag] getSys: ctx is null; ST_getContext type =', typeof ST_getContext); } catch {}
         }
-        if (!ctx) return null;
-        const es = ctx.eventSource;
-        const et = ctx.eventTypes || ctx.event_types;
+        if (ctx) { this.ctxRef = ctx; }
+        const es = ctx?.eventSource;
+        const et = ctx?.eventTypes || ctx?.event_types;
+        if (!es || !et) {
+          try { console.debug('[Response Linter][diag] getSys: es:', !!es, ' et:', !!et); } catch {}
+        }
         return (es && et) ? { ctx, eventSource: es, event_types: et } : null;
       };
 
@@ -55,8 +58,47 @@ export class MessageHandler {
       }
 
       if (!sys) {
-        console.error('[Response Linter] 无法获取事件系统：getContext().eventSource/event_types 不可用');
+        console.error('[Response Linter] 无法获取事件系统：getContext().eventSource/event_types 不可用，将在APP_READY与每3秒重试绑定');
+        // 周期性重试绑定（每3秒一次）
+        if (!this.rebindTimer) {
+          this.rebindTimer = setInterval(async () => {
+            try {
+              const s = await getSys();
+              if (s) {
+                clearInterval(this.rebindTimer);
+                this.rebindTimer = null;
+                await this.startListening();
+              }
+            } catch {}
+          }, 3000);
+        }
+        // 也立即监听 APP_READY 后再次绑定
+        try {
+          const c = this.ctxRef || __getCtx();
+          if (c?.eventSource && (c.eventTypes || c.event_types)) {
+            const et = c.eventTypes || c.event_types;
+            c.eventSource.once(et.APP_READY, () => this.startListening());
+          }
+        } catch {}
         return;
+      // 作为最后回退：观察 DOM 出现 #chat 容器后再尝试获取上下文（部分构建里上下文在 UI 完全渲染后注入）
+      try {
+        if (!this.domObserver) {
+          this.domObserver = new MutationObserver(async () => {
+            const chatEl = document.querySelector('#chat');
+            if (chatEl) {
+              const s = await getSys();
+              if (s) {
+                this.domObserver.disconnect();
+                this.domObserver = null;
+                await this.startListening();
+              }
+            }
+          });
+          this.domObserver.observe(document.documentElement, { childList: true, subtree: true });
+        }
+      } catch {}
+
       }
 
       // 监听AI消息渲染完成事件
@@ -88,19 +130,24 @@ export class MessageHandler {
         handler: messageRenderedHandler,
       });
 
-      // 可选诊断：监听 MESSAGE_RECEIVED（不改变逻辑，仅帮助定位事件时序），仅在控制台输出
+      // 监听 MESSAGE_RECEIVED（渲染前时机）用于前置验证/修复
       try {
         if (sys.event_types?.MESSAGE_RECEIVED && typeof sys.eventSource.on === 'function') {
-          sys.eventSource.on(sys.event_types.MESSAGE_RECEIVED, (id, type) => {
-            try { console.debug('[Response Linter][diag] MESSAGE_RECEIVED', id, type); } catch {}
-          });
-          this.eventListeners.push({ event: sys.event_types.MESSAGE_RECEIVED, handler: (id,type)=>{} });
+          const messageReceivedHandler = (id, type) => {
+            try { console.debug('[Response Linter] MESSAGE_RECEIVED', id, type); } catch {}
+            // 与渲染后相同的处理路径，仍通过队列与去重
+            this._handleMessageRendered(String(id));
+          };
+          sys.eventSource.on(sys.event_types.MESSAGE_RECEIVED, messageReceivedHandler);
+          this.eventListeners.push({ event: sys.event_types.MESSAGE_RECEIVED, handler: messageReceivedHandler });
         }
       } catch {}
 
 
       this.isListening = true;
-      console.log('[Response Linter] 消息处理器开始监听事件');
+      console.log('[Response Linter] 消息处理器开始监听事件', {
+        listeners: this.eventListeners.map(e=>e.event),
+      });
     } catch (error) {
       console.error('[Response Linter] 启动消息监听失败:', error);
     }
@@ -119,7 +166,7 @@ export class MessageHandler {
       if (!ctx || !ctx.eventSource) return;
       // 移除事件监听器
       this.eventListeners.forEach(({ event, handler }) => {
-        ctx.eventSource.off(event, handler);
+        try { ctx.eventSource.removeListener(event, handler); } catch(e) { try { ctx.eventSource.off?.(event, handler); } catch {} }
       });
       this.eventListeners = [];
       this.isListening = false;
@@ -153,6 +200,8 @@ export class MessageHandler {
       }
     } catch (error) {
       console.error('处理消息渲染事件失败:', error, { messageId });
+      // 出错时允许下次重试
+      this.processedMessages.delete(messageId);
     }
   }
 
@@ -167,11 +216,27 @@ export class MessageHandler {
       const messageId = this.processingQueue.shift();
 
       try {
-        await this._processMessage(messageId);
+        const ok = await this._processMessage(messageId);
         // 添加小延迟避免阻塞UI
         await this._sleep(10);
+        if (!ok) {
+          // 若处理失败（例如上下文未就绪），允许有限次重试
+          const count = (this.retryCounts.get(messageId) || 0) + 1;
+          if (count <= 3) {
+            this.retryCounts.set(messageId, count);
+            // 移除“已处理”标记以便后续重试
+            this.processedMessages.delete(messageId);
+            // 稍后重试（100ms）
+            setTimeout(() => this._handleMessageRendered(messageId), 100);
+          } else {
+            this.retryCounts.delete(messageId);
+          }
+        } else {
+          this.retryCounts.delete(messageId);
+        }
       } catch (error) {
         console.error('处理消息失败:', error, { messageId });
+        this.processedMessages.delete(messageId);
       }
     }
 
@@ -188,12 +253,12 @@ export class MessageHandler {
 
     if (!messageData) {
       console.warn('无法提取消息数据:', messageId);
-      return;
+      return false;
     }
 
     // 只处理AI消息（非用户消息）
     if (messageData.isUser) {
-      return;
+      return true; // 非AI消息视为成功处理
     }
 
     console.log(`处理AI消息 [${messageId}]:`, {
@@ -208,6 +273,7 @@ export class MessageHandler {
       name: messageData.name,
       timestamp: new Date(),
     });
+    return true;
   }
 
   /**
@@ -218,41 +284,38 @@ export class MessageHandler {
 
   extractMessage(messageId) {
     try {
-      const context = __getCtx?.() || window.getContext?.() || null;
+      // 优先用缓存的 ctxRef，降低偶发空窗口
+      const context = this.ctxRef || __getCtx?.() || window.getContext?.() || null;
 
-      if (!context || !context.chat || !Array.isArray(context.chat)) {
+      if (!context || !Array.isArray(context?.chat)) {
         console.warn('无法获取聊天上下文');
         return null;
       }
 
-      // 通过messageId查找消息
-      const message = context.chat.find(msg => msg.id == messageId || context.chat.indexOf(msg) == messageId);
+      // 支持两种标识：严格 id 匹配 或 索引
+      let message = context.chat.find(msg => msg.id == messageId);
+      let idx = -1;
+      if (!message) {
+        idx = Number.parseInt(messageId, 10);
+        if (Number.isInteger(idx) && idx >= 0 && idx < context.chat.length) {
+          message = context.chat[idx];
+        }
+      }
 
       if (!message) {
         console.warn('未找到对应消息:', messageId);
         return null;
       }
 
-      // 提取消息内容（优先使用display_text）
-      const content = message.extra?.display_text || message.mes || '';
-
-      // 兜底：若按ID查找失败且 id 是数字字符串，按索引直接访问
-      const tryIdx = Number.parseInt(messageId, 10);
-      if (!message && Number.isInteger(tryIdx) && tryIdx >= 0 && tryIdx < context.chat.length) {
-        const m = context.chat[tryIdx];
-        const c = (m?.extra?.display_text || m?.mes || '').trim();
-        return {
-          id: String(tryIdx), content: c, name: m?.name || 'Unknown', isUser: !!m?.is_user, isSystem: !!m?.is_system,
-          timestamp: m?.send_date || new Date().toISOString(), raw: m,
-        };
-      }
+      const content = (message.extra?.display_text ?? message.mes ?? '').trim();
+      const resolvedId = (message.id ?? (idx >= 0 ? String(idx) : String(messageId)));
 
       return {
-        id: messageId,
-        content: content.trim(),
+        id: String(resolvedId),
+        content,
         name: message.name || 'Unknown',
-        isUser: message.is_user || false,
-        isSystem: message.is_system || false,
+        isUser: !!message.is_user,
+        isSystem: !!message.is_system,
         timestamp: message.send_date || new Date().toISOString(),
         raw: message,
       };

@@ -161,7 +161,8 @@ export class MessageModifier {
           },
         };
       } else {
-        throw new Error(updateResult.error || 'DOM更新失败');
+        const err = updateResult.error || 'DOM更新失败';
+        throw new Error(err);
       }
     } catch (error) {
       console.error('执行消息修改失败:', error);
