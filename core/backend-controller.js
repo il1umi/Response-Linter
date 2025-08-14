@@ -52,10 +52,11 @@ export class BackendController {
       const activeRules = (settings.rules || []).filter(rule => rule.enabled);
       validationEngine.initialize(activeRules, settings.enabled);
 
-      // 初始化修复协调器
+      // 初始化修复协调器（传递默认行为以决定是否需要确认）
       fixCoordinator.initialize({
         enabled: settings.enabled,
         autoFix: settings.autoFix || false,
+        defaultAutoFixAction: settings.defaultAutoFixAction,
       });
 
       // 如果启用了扩展，开始监听消息
@@ -125,10 +126,11 @@ export class BackendController {
       validationEngine.updateRules(activeRules);
       validationEngine.setEnabled(settings.enabled);
 
-      // 更新修复协调器设置
+      // 更新修复协调器设置（包含默认行为）
       fixCoordinator.updateSettings({
         enabled: settings.enabled,
         autoFix: settings.autoFix || false,
+        defaultAutoFixAction: settings.defaultAutoFixAction,
       });
 
       // 根据设置状态控制服务运行
@@ -164,7 +166,14 @@ export class BackendController {
       const result = validationEngine.validateMessage(latestMessage.content, latestMessage.id);
 
       if (result) {
-        this._handleValidationResult(result, latestMessage);
+        // 规范化消息数据结构，确保包含 messageId 字段（事件流同名）
+        const messageData = {
+          messageId: String(latestMessage.id),
+          content: latestMessage.content,
+          name: latestMessage.name,
+          timestamp: latestMessage.timestamp,
+        };
+        this._handleValidationResult(result, messageData);
       }
 
       return result;
