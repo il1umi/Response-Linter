@@ -234,7 +234,7 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
 
       <div class="rl-content-preview">
         <h4>修复后内容预览：</h4>
-        <pre style="max-height: 150px; overflow-y: auto; background: var(--SmartThemeBodyColor); padding: 10px; border-radius: 4px; text-align: left;">${escapeHtml(
+        <pre style="max-height: 150px; overflow-y: auto; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); border: 1px solid var(--SmartThemeBorderColor); padding: 10px; border-radius: 4px; text-align: left; white-space: pre-wrap;">${escapeHtml(
           preview,
         )}</pre>
       </div>
