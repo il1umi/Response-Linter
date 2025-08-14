@@ -4,7 +4,12 @@
 // 统一通过 getContext() 与酒馆交互，避免直接导入内部文件
 // 注意：以下常量通过运行时从 getContext() 获取，保证低耦合
 const __getCtx = () => {
-  try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; }
+  try {
+    if (typeof getContext === 'function') return getContext();
+    if (window?.SillyTavern?.getContext) return window.SillyTavern.getContext();
+    if (window?.getContext) return window.getContext();
+  } catch {}
+  return null;
 };
 const __ST = (() => {
   const ctx = __getCtx() || {};
@@ -362,52 +367,48 @@ function escapeHtml(text) {
 
 // 设置管理
 async function loadSettings() {
-  // 如果设置不存在则初始化
-  extension_settings[extensionName] = extension_settings[extensionName] || {};
-  if (Object.keys(extension_settings[extensionName]).length === 0) {
-    Object.assign(extension_settings[extensionName], defaultSettings);
-  }
+  // 延迟初始化：此处不写入默认值，避免在宿主尚未把持久化设置加载完成前覆盖用户数据
 
   // 通过 getContext() 取最新设置根，避免被窗口级对象覆盖
   const ctx = __getCtx();
   const settingsRoot = ctx?.extensionSettings || extension_settings;
+  const hasKey = Object.prototype.hasOwnProperty.call(settingsRoot || {}, extensionName);
+  try { console.info('[Response Linter] loadSettings(begin): hasKey=', hasKey, 'keys=', settingsRoot ? Object.keys(settingsRoot).length : 'null'); } catch {}
 
-  // 从 accountStorage 读取备份（若存在且主源缺失），避免版本更新或时序覆盖导致丢失
+  // 从 accountStorage 读取备份（若存在），避免版本更新或时序覆盖导致丢失
+  let backup = null;
   try {
     const acc = ctx?.accountStorage;
     const backupJson = acc?.getItem?.('response_linter_settings');
-    if (!settingsRoot[extensionName] && backupJson) {
-      const backup = JSON.parse(backupJson);
-      settingsRoot[extensionName] = backup;
-      console.info('[Response Linter] 从 accountStorage 备份恢复设置');
-    }
+    if (backupJson) backup = JSON.parse(backupJson);
   } catch (e) { console.warn('[Response Linter] 读取 accountStorage 备份失败', e); }
 
-  let settings = settingsRoot[extensionName] = settingsRoot[extensionName] || extension_settings[extensionName] || null;
-
-  // 若主源缺失，尝试从 data/files 恢复一份备份
-  if (!settings) {
-    try {
-      const backup = await tryLoadSettingsFromDataFile();
-      if (backup && typeof backup === 'object') {
-        settings = settingsRoot[extensionName] = backup;
-        console.info('[Response Linter] 已从 data/files 备份恢复扩展设置');
-      }
-    } catch (e) { /* 忽略恢复失败 */ }
+  // 仅在 hasKey 时才从 settingsRoot 读取/回写，避免在宿主未就绪时创建命名空间
+  let settings = hasKey ? (settingsRoot[extensionName] || null) : null;
+  if (!settings && backup) {
+    settings = backup;
+    if (hasKey && !settingsRoot[extensionName]) {
+      settingsRoot[extensionName] = settings;
+      console.info('[Response Linter] 从 accountStorage 备份恢复设置');
+    }
   }
 
-  // 兜底：仍不存在则填充默认
+  // 兜底：仍不存在则使用默认（仅用于渲染UI与后端初始化，不回写到 settingsRoot 当 hasKey=false）
   if (!settings) {
-    settings = settingsRoot[extensionName] = JSON.parse(JSON.stringify(defaultSettings));
+    settings = JSON.parse(JSON.stringify(defaultSettings));
   }
 
-  // 双向镜像，确保 window 与 getContext() 指向同一份数据
-  try { if (window.extension_settings) window.extension_settings[extensionName] = settings; } catch (e) {}
+  // 仅当宿主已有我们的命名空间时才镜像到 window.extension_settings/ctx，避免早期写入导致“默认值落盘”
+  if (hasKey) {
+    try { settingsRoot[extensionName] = settings; } catch (e) {}
+    try { if (window.extension_settings) window.extension_settings[extensionName] = settings; } catch (e) {}
+  }
 
   // 更新UI状态（引用相同 settings 对象，避免两个源产生分叉）
   UIState.isExtensionEnabled = !!settings.enabled;
   UIState.isAutoFixEnabled = !!settings.autoFix;
   UIState.rules = Array.isArray(settings.rules) ? settings.rules : [];
+  try { console.info('[Response Linter] loadSettings(end): rules=', UIState.rules.length, 'enabled=', UIState.isExtensionEnabled); } catch {}
 
   // 更新UI控件
   $('#rl-enabled').prop('checked', settings.enabled);
@@ -455,6 +456,16 @@ async function loadSettings() {
 function saveSettings() {
   const ctx = __getCtx();
   const settingsRoot = ctx?.extensionSettings || extension_settings;
+  const hasKey = Object.prototype.hasOwnProperty.call(settingsRoot || {}, extensionName);
+  const before = settingsRoot[extensionName];
+  try { console.info('[Response Linter] saveSettings(begin): hasKey=', hasKey, 'rulesBefore=', Array.isArray(before?.rules)? before.rules.length : 'n/a'); } catch {}
+
+  // 若宿主尚未创建我们的命名空间，直接延迟，不进行任何写入或保存
+  if (!hasKey) {
+    console.info('[Response Linter] saveSettings() deferred: extensionSettings not ready for our namespace');
+    return;
+  }
+
   settingsRoot[extensionName] = settingsRoot[extensionName] || window.extension_settings?.[extensionName] || JSON.parse(JSON.stringify(defaultSettings));
   const settings = settingsRoot[extensionName];
 
@@ -486,42 +497,13 @@ function saveSettings() {
 
   const saveFn = ctx?.saveSettingsDebounced || saveSettingsDebounced;
   if (typeof saveFn === 'function') { saveFn(); console.info('[Response Linter] saveSettingsDebounced() 已触发'); }
-  // 额外：将设置备份到 SillyTavern/data/files（/user/files）
-  try { void persistSettingsToDataFile(settings); } catch (e) { console.warn('[Response Linter] 备份到 data/files 失败', e); }
+  // 已移除：向 SillyTavern/data/files（/user/files）写入备份；统一依赖 extensionSettings + saveSettingsDebounced() 持久化
 }
 
 // 后端事件处理器
 
 // ===== SillyTavern/data/files 备份与恢复 =====
-async function persistSettingsToDataFile(settings){
-  try {
-    const ctx = __getCtx();
-    const headers = ctx?.getRequestHeaders ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' };
-    const json = JSON.stringify(settings);
-    // 文本→Base64（UTF-8）
-    const base64 = btoa(unescape(encodeURIComponent(json)));
-    await fetch('/api/files/upload', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ name: 'response-linter_settings.json', data: base64 }),
-    });
-    console.info('[Response Linter] 设置已备份到 data/files/response-linter_settings.json');
-  } catch (e) {
-    console.warn('[Response Linter] persistSettingsToDataFile 失败', e);
-  }
-}
-
-async function tryLoadSettingsFromDataFile(){
-  try {
-    const resp = await fetch('/user/files/response-linter_settings.json', { method: 'GET' });
-    if (!resp.ok) return null;
-    const text = await resp.text();
-    // 兼容服务器可能以 text 形式返回
-    try { return JSON.parse(text); } catch { return null; }
-  } catch (e) {
-    return null;
-  }
-}
+// 已移除：data/files 备份相关方法 persistSettingsToDataFile 与 tryLoadSettingsFromDataFile（改为仅使用 extensionSettings 持久化）
 
 function setupBackendEventHandlers() {
   // 监听验证失败事件
@@ -1006,40 +988,105 @@ jQuery(async () => {
 
     // 🔧 加载设置：等待酒馆把 extension_settings 从服务器加载完成后再读取，避免我们用默认值覆盖后又被酒馆覆盖导致“设置重置”
     try {
-      const ctx = __getCtx();
-      const es = ctx?.eventSource;
-      const et = ctx?.eventTypes || ctx?.event_types; // 兼容早期别名
+      // 动态读取上下文，避免使用早期的“空”引用
+      const getES = () => {
+        const c = __getCtx();
+        return {
+          ctx: c,
+          es: c?.eventSource || window.eventSource,
+          et: c?.eventTypes || c?.event_types || window.event_types,
+          settingsRoot: c?.extensionSettings || window.extension_settings,
+        };
+      };
 
       const tryImmediate = () => {
-        const hasExtSettings = !!(ctx?.extensionSettings && Object.keys(ctx.extensionSettings).length);
-        if (hasExtSettings) {
-          console.info('[Response Linter] settings detected immediately -> loadSettings');
+        const { settingsRoot } = getES();
+        const hasOurExtSettings = !!(settingsRoot && Object.prototype.hasOwnProperty.call(settingsRoot, extensionName));
+        if (hasOurExtSettings) {
+          console.info('[Response Linter] our extension settings detected -> loadSettings');
           loadSettings();
           return true;
         }
         return false;
       };
 
-      if (!tryImmediate() && es && et) {
-        console.info('[Response Linter] wait for EXTENSION_SETTINGS_LOADED');
-        es.once(et.EXTENSION_SETTINGS_LOADED, () => {
-          console.info('[Response Linter] EXTENSION_SETTINGS_LOADED -> loadSettings');
-          loadSettings();
-        });
-        // 兜底：若扩展事件错过，再等全局 SETTINGS_LOADED
-        es.once(et.SETTINGS_LOADED, () => {
-          console.info('[Response Linter] SETTINGS_LOADED -> loadSettings (fallback)');
-          loadSettings();
-        });
+      // 在设置完全加载后，若仍不存在我们的命名空间，则创建（优先用备份，否则默认），随后加载与保存一次
+      let loadedHandled = false;
+      const ensureNamespaceThenLoad = () => {
+        if (loadedHandled) return; loadedHandled = true;
+        try {
+          const { ctx, settingsRoot } = getES();
+          const hasKey = Object.prototype.hasOwnProperty.call(settingsRoot || {}, extensionName);
+          if (!hasKey && settingsRoot) {
+            let seed = null;
+            try { const acc = ctx?.accountStorage; const js = acc?.getItem?.('response_linter_settings'); if (js) seed = JSON.parse(js); } catch {}
+            if (!seed) seed = JSON.parse(JSON.stringify(defaultSettings));
+            settingsRoot[extensionName] = seed;
+            try { if (window.extension_settings) window.extension_settings[extensionName] = seed; } catch {}
+            console.info('[Response Linter] created extension namespace after settings loaded');
+            const saveFn = ctx?.saveSettingsDebounced || window.saveSettingsDebounced || saveSettingsDebounced; if (typeof saveFn === 'function') saveFn();
+          }
+        } catch (e) { console.warn('[Response Linter] failed to ensure namespace after settings loaded', e); }
+        loadSettings();
+      };
+
+      // 监听事件：若当前尚不可用，则重试绑定
+      let listenersBound = false;
+      const tryBind = () => {
+        const { es, et } = getES();
+        if (es && et && !listenersBound) {
+          console.info('[Response Linter] listeners attached for EXTENSION_SETTINGS_LOADED / SETTINGS_LOADED');
+          es.once(et.EXTENSION_SETTINGS_LOADED, () => {
+            console.info('[Response Linter] EXTENSION_SETTINGS_LOADED');
+            ensureNamespaceThenLoad();
+          });
+          es.once(et.SETTINGS_LOADED, () => {
+            console.info('[Response Linter] SETTINGS_LOADED (fallback)');
+            ensureNamespaceThenLoad();
+          });
+          listenersBound = true;
+          return true;
+        }
+        return false;
+      };
+
+      // 首次尝试绑定；若失败，进行短期重试
+      if (!tryBind()) {
+        let attempts = 0;
+        const retry = () => {
+          if (tryBind()) return;
+          if (++attempts > 20) { console.warn('[Response Linter] failed to attach settings listeners after retries'); return; }
+          setTimeout(retry, 250);
+        };
+        setTimeout(retry, 250);
       }
 
-      // 最后兜底：5秒后仍未触发事件，则强行尝试一次
+      // 如已存在则立即加载一遍（不会影响后续一次性监听）
+      tryImmediate();
+
+      // 5秒兜底：避免早期写默认；仅记录
       setTimeout(() => {
-        tryImmediate() || (console.warn('[Response Linter] fallback delayed loadSettings()'), loadSettings());
+        if (!tryImmediate()) {
+          console.warn('[Response Linter] fallback delayed loadSettings() skipped: extension namespace not ready');
+        }
       }, 5000);
+
+      // 8秒保底：若此时仍无命名空间，则认为宿主已加载完设置但没有历史配置——创建并保存一次
+      setTimeout(() => {
+        const { ctx, settingsRoot } = getES();
+        if (settingsRoot && !Object.prototype.hasOwnProperty.call(settingsRoot, extensionName)) {
+          let seed = null; try { const acc = ctx?.accountStorage; const js = acc?.getItem?.('response_linter_settings'); if (js) seed = JSON.parse(js); } catch {}
+          if (!seed) seed = JSON.parse(JSON.stringify(defaultSettings));
+          settingsRoot[extensionName] = seed;
+          try { if (window.extension_settings) window.extension_settings[extensionName] = seed; } catch {}
+          console.warn('[Response Linter] late seeding extension namespace after 8s window');
+          const saveFn = ctx?.saveSettingsDebounced || window.saveSettingsDebounced || saveSettingsDebounced; if (typeof saveFn === 'function') saveFn();
+          loadSettings();
+        }
+      }, 8000);
     } catch (e) {
-      console.warn('[Response Linter] settings load deferral failed, calling loadSettings directly');
-      loadSettings();
+      console.warn('[Response Linter] settings load deferral failed, waiting for events');
+      // 不再直接调用 loadSettings()，避免早期写默认
     }
 
     // 🎯 暴露全局访问点用于调试
