@@ -82,7 +82,7 @@ export class ConfigWizardUI {
   next() {
     try {
       if (this.validateCurrentStep()) {
-        if (this.currentStep < 4) {
+        if (this.currentStep < 5) {
           this.currentStep++;
           this.updateStepDisplay();
           this.updateButtons();
@@ -148,10 +148,12 @@ export class ConfigWizardUI {
           }
           return true;
         case 2:
-          return this.validateStepTwo();
+          return true; // 配置说明步骤，无需验证
         case 3:
-          return true; // 测试步骤是可选的
+          return this.validateStepThree();
         case 4:
+          return true; // 测试步骤是可选的
+        case 5:
           const name = $('#rl-wizard-rule-name').val().trim();
           if (!name) {
             if (window.toastr) {
@@ -171,15 +173,15 @@ export class ConfigWizardUI {
   }
 
   /**
-   * 验证第二步
+   * 验证第三步（原第二步）
    * @returns {boolean} 验证是否通过
    */
-  validateStepTwo() {
+  validateStepThree() {
     try {
       // 验证逻辑将根据选择的模式而有所不同
       return this.wizardData.requiredContent && this.wizardData.requiredContent.length > 0;
     } catch (error) {
-      console.error('验证第二步失败:', error);
+      console.error('验证第三步失败:', error);
       return false;
     }
   }
@@ -228,7 +230,7 @@ export class ConfigWizardUI {
       }
 
       // 显示/隐藏下一步和完成按钮
-      if (this.currentStep < 4) {
+      if (this.currentStep < 5) {
         nextBtn.show();
         finishBtn.hide();
       } else {
@@ -246,11 +248,11 @@ export class ConfigWizardUI {
   loadStepContent() {
     try {
       switch (this.currentStep) {
-        case 2:
-          this.loadStepTwoContent();
+        case 3:
+          this.loadStepThreeContent();
           break;
-        case 4:
-          this.loadStepFourContent();
+        case 5:
+          this.loadStepFiveContent();
           break;
       }
     } catch (error) {
@@ -259,9 +261,9 @@ export class ConfigWizardUI {
   }
 
   /**
-   * 加载第二步内容
+   * 加载第三步内容（原第二步）
    */
-  loadStepTwoContent() {
+  loadStepThreeContent() {
     try {
       const container = $('#rl-wizard-config-content');
 
@@ -314,9 +316,9 @@ export class ConfigWizardUI {
 
       // 渲染后同步绑定/开关默认值
       this._applyContentOptionsToRows();
-      this.bindStepTwoEvents();
+      this.bindStepThreeEvents();
     } catch (error) {
-      console.error('加载第二步内容失败:', error);
+      console.error('加载第三步内容失败:', error);
     }
   }
 
@@ -420,9 +422,9 @@ export class ConfigWizardUI {
   }
 
   /**
-   * 绑定第二步事件
+   * 绑定第三步事件（原第二步）
    */
-  bindStepTwoEvents() {
+  bindStepThreeEvents() {
     try {
       // 一键模板：思维链（顺序+配对）
       $(document)
@@ -636,9 +638,9 @@ export class ConfigWizardUI {
   }
 
   /**
-   * 加载第四步内容
+   * 加载第五步内容（原第四步）
    */
-  loadStepFourContent() {
+  loadStepFiveContent() {
     try {
       const summary = $('#rl-wizard-summary-content');
       const modeNames = {
@@ -679,7 +681,7 @@ export class ConfigWizardUI {
       const defaultName = modeNames[this.selectedMode] + ` (${new Date().toLocaleDateString()})`;
       $('#rl-wizard-rule-name').val(defaultName);
     } catch (error) {
-      console.error('加载第四步内容失败:', error);
+      console.error('加载第五步内容失败:', error);
     }
   }
 

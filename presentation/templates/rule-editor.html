@@ -193,14 +193,18 @@
           </div>
           <div class="rl-wizard-step" data-step="2">
             <div class="rl-step-circle">2</div>
-            <div class="rl-step-label">配置内容</div>
+            <div class="rl-step-label">配置说明</div>
           </div>
           <div class="rl-wizard-step" data-step="3">
             <div class="rl-step-circle">3</div>
-            <div class="rl-step-label">测试验证</div>
+            <div class="rl-step-label">配置内容</div>
           </div>
           <div class="rl-wizard-step" data-step="4">
             <div class="rl-step-circle">4</div>
+            <div class="rl-step-label">测试验证</div>
+          </div>
+          <div class="rl-wizard-step" data-step="5">
+            <div class="rl-step-circle">5</div>
             <div class="rl-step-label">完成设置</div>
           </div>
         </div>
@@ -247,16 +251,73 @@
             </div>
           </div>
 
-          <!-- 步骤2：配置内容 -->
+          <!-- 步骤2：配置说明 -->
           <div id="rl-wizard-step-2" class="rl-wizard-panel">
+            <h4>修复动作说明</h4>
+            <p>Response Linter 提供四种修复动作，用于自动修复AI回复中的格式问题：</p>
+
+            <div class="rl-wizard-actions-guide">
+              <div class="rl-action-item">
+                <div class="rl-action-icon">🔗</div>
+                <div class="rl-action-content">
+                  <h5>配对检测与补齐</h5>
+                  <p>检测成对标签（如 &lt;thinking&gt; 和 &lt;/thinking&gt;），当发现缺失开始或结束标签时，程序会自动补全对应的配对标签。这种修复适用于标签配对不完整的情况。</p>
+                  <div class="rl-action-example">
+                    <strong>示例：</strong>AI回复中有 "&lt;thinking&gt;我在思考..." 但缺少 "&lt;/thinking&gt;"，程序会在内容末尾自动添加 "&lt;/thinking&gt;"
+                  </div>
+                </div>
+              </div>
+
+              <div class="rl-action-item">
+                <div class="rl-action-icon">⬆️</div>
+                <div class="rl-action-content">
+                  <h5>依据上一个标签插入（上后）</h5>
+                  <p>当某个标签完全缺失时，程序会在前一个期望标签之后换行并插入缺失的标签。此方法假设两个相邻标签之间通常没有其他内容，适用于严格的标签顺序结构。</p>
+                  <div class="rl-action-example">
+                    <strong>示例：</strong>期望顺序为 "&lt;thinking&gt; → &lt;/thinking&gt; → &lt;content&gt;"，但缺少 "&lt;content&gt;" 时，程序会在 "&lt;/thinking&gt;" 后换行添加 "&lt;content&gt;"
+                  </div>
+                </div>
+              </div>
+
+              <div class="rl-action-item">
+                <div class="rl-action-icon">⬇️</div>
+                <div class="rl-action-content">
+                  <h5>依据下一个标签插入（下前）</h5>
+                  <p>当某个标签完全缺失时，程序会在下一个期望标签之前换行并插入缺失的标签。此方法同样假设标签间无额外内容，通过程序逻辑而非AI推理来确定插入位置。</p>
+                  <div class="rl-action-example">
+                    <strong>示例：</strong>期望顺序为 "&lt;thinking&gt; → &lt;/thinking&gt; → &lt;content&gt;"，但缺少 "&lt;thinking&gt;" 时，程序会在 "&lt;/thinking&gt;" 前换行添加 "&lt;thinking&gt;"
+                  </div>
+                </div>
+              </div>
+
+              <div class="rl-action-item">
+                <div class="rl-action-icon">⚙️</div>
+                <div class="rl-action-content">
+                  <h5>自定义修复（占位功能）</h5>
+                  <p><strong>⚠️ 此修复动作仅作占位，请勿使用，作者还没想好逻辑。</strong></p>
+                  <div class="rl-action-example">
+                    <strong>说明：</strong>原计划使用正则表达式进行自定义内容替换，但具体实现方案仍在设计中
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rl-wizard-tip">
+              <i class="fa-solid fa-lightbulb"></i>
+              <strong>提示：</strong>在下一步中，您可以为每个验证内容选择合适的修复动作组合。
+            </div>
+          </div>
+
+          <!-- 步骤3：配置内容 -->
+          <div id="rl-wizard-step-3" class="rl-wizard-panel">
             <h4>配置验证内容</h4>
             <div id="rl-wizard-config-content">
               <!-- 动态内容将根据选择的模式生成 -->
             </div>
           </div>
 
-          <!-- 步骤3：测试验证 -->
-          <div id="rl-wizard-step-3" class="rl-wizard-panel">
+          <!-- 步骤4：测试验证 -->
+          <div id="rl-wizard-step-4" class="rl-wizard-panel">
             <h4>测试验证规则</h4>
             <p>请提供一个示例文本来测试您的规则：</p>
 
@@ -278,8 +339,8 @@
             </div>
           </div>
 
-          <!-- 步骤4：完成设置 -->
-          <div id="rl-wizard-step-4" class="rl-wizard-panel">
+          <!-- 步骤5：完成设置 -->
+          <div id="rl-wizard-step-5" class="rl-wizard-panel">
             <h4>完成规则设置</h4>
             <div class="rl-wizard-summary">
               <h5>规则摘要</h5>

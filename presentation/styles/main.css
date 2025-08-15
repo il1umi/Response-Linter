@@ -1467,3 +1467,77 @@ input[type='range']::-moz-range-thumb {
 .rl-chip { display:inline-block; padding:2px 6px; border:1px solid var(--SmartThemeBorderColor); border-radius:8px; font-size:12px; color:var(--SmartThemeBodyColor); opacity:0.9; }
 .rl-actions-popup .grid-two { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; align-items:center; }
 .rl-actions-popup .checkbox_label { display:flex; align-items:center; gap:8px; }
+
+/* 向导配置说明样式 */
+.rl-wizard-actions-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.rl-action-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--SmartThemeBlurTintColor);
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.rl-action-icon {
+  font-size: 1.5em;
+  min-width: 32px;
+  text-align: center;
+}
+
+.rl-action-content {
+  flex: 1;
+}
+
+.rl-action-content h5 {
+  margin: 0 0 8px 0;
+  color: var(--SmartThemeBodyColor);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.rl-action-content p {
+  margin: 0 0 8px 0;
+  color: var(--SmartThemeQuoteColor);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.rl-action-example {
+  font-size: 0.85em;
+  color: var(--SmartThemeQuoteColor);
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.rl-action-example strong {
+  color: var(--SmartThemeBodyColor);
+  font-weight: 600;
+}
+
+.rl-wizard-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 10%, var(--SmartThemeBlurTintColor));
+  border: 1px solid var(--SmartThemeCheckboxBorderColor);
+  border-radius: 6px;
+  margin-top: 16px;
+}
+
+.rl-wizard-tip i {
+  color: var(--SmartThemeCheckboxBorderColor);
+  margin-top: 2px;
+}
+
+.rl-wizard-tip strong {
+  color: var(--SmartThemeBodyColor);
+}
