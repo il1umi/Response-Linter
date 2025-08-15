@@ -4,7 +4,20 @@ import { getContext as ST_getContext } from '../../../../st-context.js';
 // 负责监听SillyTavern事件、提取消息内容和协调验证流程
 
 // 统一通过 getContext() 与事件系统交互，避免直接导入内部文件
-const __getCtx = () => { try { return (typeof getContext === 'function') ? getContext() : (window.getContext ? window.getContext() : null); } catch { return null; } };
+// 使用安全的上下文获取：优先 SillyTavern.getContext()，再到全局 getContext/window.getContext
+function safeGetContext() {
+  try {
+    if (window?.SillyTavern?.getContext) return window.SillyTavern.getContext();
+  } catch {}
+  try {
+    if (typeof getContext === 'function') return getContext();
+  } catch {}
+  try {
+    if (typeof window !== 'undefined' && typeof window.getContext === 'function') return window.getContext();
+  } catch {}
+  return null;
+}
+
 
 /**
  * 消息处理器核心类
@@ -12,7 +25,9 @@ const __getCtx = () => { try { return (typeof getContext === 'function') ? getCo
 export class MessageHandler {
   constructor() {
     this.isListening = false;
-    this.processedMessages = new Set(); // 防止重复处理
+    this.processedMessages = new Set(); // 仅作为护栏，防止极端情况下重复入队死循环
+    this.lastContent = new Map(); // messageId -> last content string
+    this.lastHandledAt = new Map(); // messageId -> timestamp(ms) 防抖
     this.eventListeners = [];
     this.processingQueue = [];
     this.isProcessing = false;
@@ -34,9 +49,9 @@ export class MessageHandler {
     try {
       const getSys = async () => {
         // 优先使用 ST 提供的 getContext（通过 st-context 模块导出）
-        let ctx = this.ctxRef || __getCtx() || (typeof ST_getContext === 'function' ? ST_getContext() : null);
+        let ctx = this.ctxRef || safeGetContext();
         if (!ctx) {
-          try { console.debug('[Response Linter][diag] getSys: ctx is null; ST_getContext type =', typeof ST_getContext); } catch {}
+          try { console.debug('[Response Linter][diag] getSys: ctx is null; SillyTavern.getContext exists =', !!(window?.SillyTavern?.getContext)); } catch {}
         }
         if (ctx) { this.ctxRef = ctx; }
         const es = ctx?.eventSource;
@@ -74,7 +89,7 @@ export class MessageHandler {
         }
         // 也立即监听 APP_READY 后再次绑定
         try {
-          const c = this.ctxRef || __getCtx();
+          const c = this.ctxRef || safeGetContext();
           if (c?.eventSource && (c.eventTypes || c.event_types)) {
             const et = c.eventTypes || c.event_types;
             c.eventSource.once(et.APP_READY, () => this.startListening());
@@ -102,8 +117,9 @@ export class MessageHandler {
       }
 
       // 监听AI消息渲染完成事件
-      const messageRenderedHandler = messageId => {
-        this._handleMessageRendered(messageId);
+      const messageRenderedHandler = (messageId, type) => {
+        try { console.log('[Response Linter] CHARACTER_MESSAGE_RENDERED', messageId, type); } catch {}
+        this._handleMessageRendered(String(messageId));
       };
 
       // 绑定消息渲染事件：优先使用 makeLast，确保在其他监听器之后执行；否则回退到 on
@@ -135,11 +151,21 @@ export class MessageHandler {
         if (sys.event_types?.MESSAGE_RECEIVED && typeof sys.eventSource.on === 'function') {
           const messageReceivedHandler = (id, type) => {
             try { console.debug('[Response Linter] MESSAGE_RECEIVED', id, type); } catch {}
-            // 与渲染后相同的处理路径，仍通过队列与去重
             this._handleMessageRendered(String(id));
           };
           sys.eventSource.on(sys.event_types.MESSAGE_RECEIVED, messageReceivedHandler);
           this.eventListeners.push({ event: sys.event_types.MESSAGE_RECEIVED, handler: messageReceivedHandler });
+        }
+        // 监听消息更新与滑动切换，重roll/编辑时也能感知
+        if (typeof sys.eventSource.on === 'function') {
+          if (sys.event_types?.MESSAGE_UPDATED) {
+            sys.eventSource.on(sys.event_types.MESSAGE_UPDATED, messageRenderedHandler);
+            this.eventListeners.push({ event: sys.event_types.MESSAGE_UPDATED, handler: messageRenderedHandler });
+          }
+          if (sys.event_types?.MESSAGE_SWIPED) {
+            sys.eventSource.on(sys.event_types.MESSAGE_SWIPED, messageRenderedHandler);
+            this.eventListeners.push({ event: sys.event_types.MESSAGE_SWIPED, handler: messageRenderedHandler });
+          }
         }
       } catch {}
 
@@ -162,7 +188,7 @@ export class MessageHandler {
     }
 
     try {
-      const ctx = __getCtx();
+      const ctx = safeGetContext();
       if (!ctx || !ctx.eventSource) return;
       // 移除事件监听器
       this.eventListeners.forEach(({ event, handler }) => {
@@ -182,16 +208,15 @@ export class MessageHandler {
    * @param {string} messageId - 消息ID
    */
   async _handleMessageRendered(messageId) {
-    // 防止重复处理同一消息
-    if (this.processedMessages.has(messageId)) {
+    // 内容级去重由 _processMessage 负责；这里仅用 processedMessages 作为极端护栏
+    // 防抖：短时间内重复事件直接丢弃（防止同源多事件风暴）
+    const lastAt = this.lastHandledAt.get(messageId) || 0;
+    if (Date.now() - lastAt < 200) {
       return;
     }
 
     try {
-      // 标记为已处理
-      this.processedMessages.add(messageId);
-
-      // 添加到处理队列
+      // 入队处理
       this.processingQueue.push(messageId);
 
       // 如果没有正在处理，开始处理队列
@@ -224,8 +249,6 @@ export class MessageHandler {
           const count = (this.retryCounts.get(messageId) || 0) + 1;
           if (count <= 3) {
             this.retryCounts.set(messageId, count);
-            // 移除“已处理”标记以便后续重试
-            this.processedMessages.delete(messageId);
             // 稍后重试（100ms）
             setTimeout(() => this._handleMessageRendered(messageId), 100);
           } else {
@@ -261,10 +284,22 @@ export class MessageHandler {
       return true; // 非AI消息视为成功处理
     }
 
-    console.log(`处理AI消息 [${messageId}]:`, {
+    // 内容去重：仅当内容发生变化时才继续后续流程
+    const prev = this.lastContent.get(messageId);
+    const changed = prev !== messageData.content;
+    this.lastContent.set(messageId, messageData.content);
+    this.lastHandledAt.set(messageId, Date.now());
+
+    console.log(`处理AI消息 [${messageId}]`, {
       length: messageData.content.length,
       name: messageData.name,
+      changed,
     });
+
+    if (!changed) {
+      // 内容未变化：视为成功处理但不再触发验证/修复
+      return true;
+    }
 
     // 触发消息处理事件
     this._dispatchMessageEvent('messageProcessed', {
@@ -285,7 +320,7 @@ export class MessageHandler {
   extractMessage(messageId) {
     try {
       // 优先用缓存的 ctxRef，降低偶发空窗口
-      const context = this.ctxRef || __getCtx?.() || window.getContext?.() || null;
+      const context = this.ctxRef || safeGetContext() || null;
 
       if (!context || !Array.isArray(context?.chat)) {
         console.warn('无法获取聊天上下文');
@@ -331,7 +366,7 @@ export class MessageHandler {
    */
   getLatestAIMessage() {
     try {
-      const context = __getCtx?.() || window.getContext?.() || null;
+      const context = safeGetContext() || null;
 
       if (!context?.chat?.length) {
         return null;

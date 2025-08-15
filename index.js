@@ -224,7 +224,10 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
   };
 
   const strategyName = strategyNames[strategy] || strategy;
-  const preview = newContent.length > 200 ? newContent.substring(0, 200) + '...' : newContent;
+  // 预览展示策略：默认全量；超过阈值时使用 <details> 折叠以保护性能
+  const LONG_PREVIEW_THRESHOLD = 1000; // 1000 字符保护阈值（约等于 1000 个中文汉字）
+  const isLongPreview = (newContent || '').length > LONG_PREVIEW_THRESHOLD;
+  const preview = newContent;
 
   const dialogContent = `
     <div class="rl-fix-confirmation-dialog">
@@ -234,9 +237,15 @@ async function showFixConfirmationDialog(messageId, originalContent, newContent,
 
       <div class="rl-content-preview">
         <h4>修复后内容预览：</h4>
-        <pre style="max-height: 150px; overflow-y: auto; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); border: 1px solid var(--SmartThemeBorderColor); padding: 10px; border-radius: 4px; text-align: left; white-space: pre-wrap;">${escapeHtml(
-          preview,
-        )}</pre>
+        ${isLongPreview ? `
+          <details style="text-align: left;">
+            <summary style="cursor: pointer; user-select: none; color: var(--SmartThemeEmColor);">内容较长，点击展开/收起</summary>
+            <pre style="max-height: 60vh; max-height: 60svh; max-height: 60dvh; overflow-y: auto; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); border: 1px solid var(--SmartThemeBorderColor); padding: 10px; border-radius: 4px; text-align: left; white-space: pre-wrap;">${escapeHtml(preview)}</pre>
+          </details>
+        ` : `
+            <pre style="max-height: 60vh; max-height: 60svh; max-height: 60dvh; overflow-y: auto; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); border: 1px solid var(--SmartThemeBorderColor); padding: 10px; border-radius: 4px; text-align: left; white-space: pre-wrap;">${escapeHtml(preview)}</pre>
+        `}
+
       </div>
     </div>
   `;
