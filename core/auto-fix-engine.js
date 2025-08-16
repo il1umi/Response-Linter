@@ -296,12 +296,14 @@ export class PositionalFixStrategy extends FixStrategy {
 
     // 针对思维链模式的特殊处理
     if (missingItem === '<content>' && content.includes('</thinking>')) {
-      const thinkingEndIndex = content.lastIndexOf('</thinking>');
-      return {
-        index: thinkingEndIndex + '</thinking>'.length,
-        type: 'after-thinking',
-        addNewlines: this.options.doubleNewline,
+      const thinkingEndIndex = this._findLastIndexOutsideCode(content, '</thinking>');
+      if (thinkingEndIndex !== -1) {
+        return {
+          index: thinkingEndIndex + '</thinking>'.length,
+          type: 'after-thinking',
+          addNewlines: this.options.doubleNewline,
       };
+    }
     }
 
     // 优先：若存在“下一个期望标签”，在其前插入
@@ -367,9 +369,9 @@ export class PositionalFixStrategy extends FixStrategy {
       let bestPos = -1;
       for (let i = idx + 1; i < seq.length; i++) {
         const candidate = seq[i];
-        const pos = content.indexOf(candidate);
+        const pos = this._findFirstIndexOutsideCode(content, candidate);
         if (pos !== -1) {
-          if (bestPos === -1 || pos < bestPos) bestPos = pos; // 找到“最靠前”的下一项
+          if (bestPos === -1 || pos < bestPos) bestPos = pos; // 找到“最靠前”的下一项（忽略反引号代码片段）
         }
       }
       return bestPos;
@@ -529,6 +531,39 @@ export class PositionalFixStrategy extends FixStrategy {
     } catch {}
 
     return content.slice(0, index) + insertText + content.slice(index);
+  }
+
+  // 辅助：在排除反引号代码片段的情况下查找最后出现位置
+  _findLastIndexOutsideCode(content, needle) {
+    let pos = -1;
+    let start = 0;
+    while (true) {
+      const idx = content.indexOf(needle, start);
+      if (idx === -1) break;
+      if (this._isInsideBackticks(content, idx)) { start = idx + needle.length; continue; }
+      pos = idx; start = idx + needle.length;
+    }
+    return pos;
+  }
+
+  // 辅助：在排除反引号代码片段的情况下查找第一次出现位置
+  _findFirstIndexOutsideCode(content, needle) {
+    let start = 0;
+    while (true) {
+      const idx = content.indexOf(needle, start);
+      if (idx === -1) return -1;
+      if (this._isInsideBackticks(content, idx)) { start = idx + needle.length; continue; }
+      return idx;
+    }
+  }
+
+  _isInsideBackticks(content, idx) {
+    const left = content.lastIndexOf('`', idx);
+    if (left !== -1) {
+      const right = content.indexOf('`', left + 1);
+      if (right !== -1 && left < idx && idx < right) return true;
+    }
+    return false;
   }
 
   validate(fixedContent, originalMissingItems) {

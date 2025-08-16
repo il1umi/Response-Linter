@@ -158,6 +158,7 @@ export class ValidationEngine {
         positions: positions,
         found: positions.length > 0,
         firstPosition: positions.length > 0 ? positions[0] : -1,
+        lastPosition: positions.length > 0 ? positions[positions.length - 1] : -1,
       });
     }
 
@@ -179,8 +180,14 @@ export class ValidationEngine {
       const index = content.indexOf(item, startIndex);
       if (index === -1) break;
 
+      // 忽略代码片段中的匹配（例如 1.`<content>` 这样的演示文本）
+      if (this._isInCodeSpan(content, index)) {
+        startIndex = index + item.length;
+        continue;
+      }
+
       positions.push(index);
-      startIndex = index + 1;
+      startIndex = index + item.length;
     }
 
     return positions;
@@ -223,12 +230,13 @@ export class ValidationEngine {
       const current = foundItems[i];
       const previous = foundItems[i - 1];
 
-      if (current.firstPosition < previous.firstPosition) {
+      // 使用“前一项的最后出现位置”进行顺序校验，确保后续项必须位于其之后
+      if (current.firstPosition < previous.lastPosition) {
         orderErrors.push({
           item: current.item,
           expectedAfter: previous.item,
           actualPosition: current.firstPosition,
-          expectedAfterPosition: previous.firstPosition,
+          expectedAfterPosition: previous.lastPosition,
         });
       }
     }
@@ -238,8 +246,8 @@ export class ValidationEngine {
     for (let i = 0; i < foundItems.length - 1; i++) {
       const current = foundItems[i];
       const next = foundItems[i + 1];
-      if (current.firstPosition > next.firstPosition) {
-        beforeHints.push({ item: next.item, expectedBefore: current.item, actualPosition: next.firstPosition, expectedBeforePosition: current.firstPosition });
+      if (current.lastPosition > next.firstPosition) {
+        beforeHints.push({ item: next.item, expectedBefore: current.item, actualPosition: next.firstPosition, expectedBeforePosition: current.lastPosition });
       }
     }
 
@@ -291,6 +299,7 @@ export class ValidationEngine {
         details.push({
           type: 'order',
           item: orderError.item,
+          expectedAfter: orderError.expectedAfter, // 提供给修复协调器作为“应补标签”依据
           message: `标签 ${orderError.item} 位于第${currentLine}行，未满足“在 ${orderError.expectedAfter} 之后”的要求（${orderError.expectedAfter} 位于第${expectedLine}行）`,
           suggestedFix: `将 ${orderError.item} 移到 ${orderError.expectedAfter} 之后`,
           actualLine: currentLine,
@@ -334,6 +343,21 @@ export class ValidationEngine {
       suggestion: `在第${lines.length}行末尾添加`,
       insertAfter: '内容末尾',
     };
+  }
+
+  /**
+   * 判断某位置是否处于代码/反引号演示片段内
+   * - 过滤 1.`<tag>` 这类演示，不计入真实标签
+   */
+  _isInCodeSpan(content, index) {
+    try {
+      const left = content.lastIndexOf('`', index);
+      if (left !== -1) {
+        const right = content.indexOf('`', left + 1);
+        if (right !== -1 && left < index && index < right) return true;
+      }
+      return false;
+    } catch { return false; }
   }
 
   /**

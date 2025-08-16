@@ -110,11 +110,25 @@ export class FixCoordinator {
         return;
       }
 
+      // 基于顺序错误合成“待补标签”：
+      // 例：要求 A(</Psyche_think>) 在 B(<content>) 之前，但检测到 B 提前，则把 A 当作“缺少的标签”加入修复列表
+      let _missing = Array.isArray(result.missingContent) ? [...result.missingContent] : [];
+      try {
+        if (result.errorType === 'order' && Array.isArray(result.errorDetails)) {
+          const synth = result.errorDetails
+            .filter(d => d && d.type === 'order' && typeof d.expectedAfter === 'string' && /^<\//.test(d.expectedAfter))
+            .map(d => d.expectedAfter);
+          if (synth.length) {
+            _missing = [...new Set([..._missing, ...synth])];
+          }
+        }
+      } catch {}
+
       // 创建修复任务
       const fixTask = {
         messageId: messageData.messageId,
         content: messageData.content,
-        missingItems: result.missingContent,
+        missingItems: _missing,
         ruleName: result.ruleName,
         ruleId: result?.metadata?.ruleId || null,
         fixStrategy: result.fixStrategy,
