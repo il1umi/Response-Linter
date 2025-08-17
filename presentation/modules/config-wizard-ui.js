@@ -58,6 +58,8 @@ export class ConfigWizardUI {
       this.wizardData = {};
 
       $('#rl-config-wizard-modal').fadeIn(200);
+      // 锁定背景滚动，避免移动端滚动穿透
+      $('body').addClass('rl-modal-open');
       this.updateStepDisplay();
       this.updateButtons();
     } catch (error) {
@@ -70,7 +72,11 @@ export class ConfigWizardUI {
    */
   hide() {
     try {
-      $('#rl-config-wizard-modal').fadeOut(200);
+      $('#rl-config-wizard-modal').fadeOut(200, () => {
+        if ($('.rl-modal:visible').length === 0) {
+          $('body').removeClass('rl-modal-open');
+        }
+      });
     } catch (error) {
       console.error('隐藏配置向导失败:', error);
     }

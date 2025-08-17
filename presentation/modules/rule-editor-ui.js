@@ -108,6 +108,8 @@ export class RuleEditorUI {
   showModal() {
     try {
       $('#rl-rule-editor-modal').fadeIn(200);
+      // 锁定背景滚动，避免移动端滚动穿透
+      $('body').addClass('rl-modal-open');
       $('#rl-rule-name').focus();
     } catch (error) {
       console.error('显示模态框失败:', error);
@@ -119,7 +121,12 @@ export class RuleEditorUI {
    */
   hideModal() {
     try {
-      $('#rl-rule-editor-modal').fadeOut(200);
+      $('#rl-rule-editor-modal').fadeOut(200, () => {
+        // 所有rl-modal关闭后再解除滚动锁
+        if ($('.rl-modal:visible').length === 0) {
+          $('body').removeClass('rl-modal-open');
+        }
+      });
       const state = this._uiState || window.UIState || window.ResponseLinter?.UIState;
       if (state) {
         state.currentEditingRule = null;

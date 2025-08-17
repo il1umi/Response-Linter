@@ -257,28 +257,37 @@
 /* Modal Styles */
 .rl-modal {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   backdrop-filter: blur(2px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)) 12px;
+  touch-action: manipulation;
 }
 
 .rl-modal-content {
   background: var(--SmartThemeBlurTintColor);
   color: var(--SmartThemeBodyColor);
   border-radius: 10px;
-  width: 90%;
+  width: min(96vw, 600px);
   max-width: 600px;
-  max-height: 80vh;
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--SmartThemeBorderColor);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .rl-modal-header {
@@ -313,7 +322,8 @@
 
 .rl-modal-body {
   padding: 20px;
-  max-height: 60vh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -1452,6 +1462,9 @@ input[type='range']::-moz-range-thumb {
   50% {
     opacity: 0.5;
   }
+/* 背景滚动锁，用于任何rl-modal显示时 */
+body.rl-modal-open { overflow: hidden !important; }
+
   100% {
     opacity: 1;
   }
