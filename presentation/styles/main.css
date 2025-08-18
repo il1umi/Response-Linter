@@ -877,6 +877,20 @@ input[type='range']::-moz-range-thumb {
   margin-right: 4px;
 }
 
+/* 操作按钮行：横向排列，移动端自动换行 */
+.rl-actions-row {
+  display: flex;            /* 横向排列 */
+  gap: 8px;                 /* 按钮间距 */
+  flex-wrap: wrap;          /* 窄屏自动换行 */
+  align-items: center;      /* 垂直对齐 */
+}
+/* 在本扩展范围内覆盖SillyTavern默认的 menu_button 宽度，避免中文被逐字换行成纵排 */
+.response-linter-settings .menu_button {
+  width: auto;           /* 覆盖全局 width:min-content 引起的过窄问题 */
+  white-space: nowrap;   /* 按钮内文本不换行 */
+}
+
+
 /* 使用指引样式 */
 .rl-usage-guide {
   background: color-mix(in srgb, var(--SmartThemeCheckboxBorderColor) 5%, var(--SmartThemeBlurTintColor));
