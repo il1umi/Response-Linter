@@ -889,6 +889,12 @@ input[type='range']::-moz-range-thumb {
   width: auto;           /* 覆盖全局 width:min-content 引起的过窄问题 */
   white-space: nowrap;   /* 按钮内文本不换行 */
 }
+/* 覆盖配置向导内按钮：防止中文逐字断行导致竖排 */
+#rl-config-wizard-modal .menu_button {
+  width: auto;
+  white-space: nowrap;
+}
+
 
 
 /* 使用指引样式 */
