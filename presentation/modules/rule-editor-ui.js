@@ -670,23 +670,26 @@ export class RuleEditorUI {
         },
       };
 
-      // 将每个内容项的绑定写入 contentOptions
+      // 将每个内容项的绑定写入 contentOptions（以 UIState 为准，避免被DOM状态覆盖）
       formData.contentOptions = {};
-      // 采集每个内容项的动作（多选）
+      const state = this._uiState || window.UIState || window.ResponseLinter?.UIState;
+      const currentRule = state?.rules?.find(r => r.id === state?.currentEditingRule);
       this.currentTags.forEach(tag => {
         const row = document.querySelector(`.rl-content-item[data-content="${CSS.escape(tag)}"]`);
-        const actions = Array.from(row?.querySelectorAll('.rl-multi-menu input:checked') || []).map(el=>el.value);
         const tooltip = row?.querySelector('.rl-custom-mini');
-        const state = this._uiState || window.UIState || window.ResponseLinter?.UIState;
-        const existing = (state?.rules?.find(r=>r.id===state?.currentEditingRule)?.contentOptions?.[tag]) || {};
-        // 写入已配置的 pattern/replacement（来源于弹窗保存）
+
+        const existing = currentRule?.contentOptions?.[tag] || {};
+        const actions = Array.isArray(existing.actions) ? existing.actions : [];
+        const enabled = existing.enabled !== false; // 默认启用
+
         formData.contentOptions[tag] = {
-          enabled: true,
+          enabled,
           actions,
           ...(existing.pattern ? { pattern: existing.pattern } : {}),
           ...(typeof existing.replacement === 'string' ? { replacement: existing.replacement } : {}),
         };
-        // 同步 tooltip 状态
+
+        // 同步 tooltip 状态（基于现有 actions/pattern/replacement）
         if (tooltip) {
           const show = actions.includes('custom') && (existing.pattern || typeof existing.replacement === 'string');
           tooltip.style.display = show ? '' : 'none';
@@ -709,8 +712,7 @@ export class RuleEditorUI {
         return;
       }
 
-      // 保存或更新规则
-      const state = this._uiState || window.UIState || window.ResponseLinter?.UIState;
+      // 保存或更新规则（复用上面的 state 变量，避免重复声明）
       if (state && state.currentEditingRule) {
         if (window.RulesManager) {
           window.RulesManager.editRule(state.currentEditingRule, formData);
