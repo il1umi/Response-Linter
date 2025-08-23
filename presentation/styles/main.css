@@ -894,6 +894,12 @@ input[type='range']::-moz-range-thumb {
   width: auto;
   white-space: nowrap;
 }
+/* 覆盖规则编辑器内按钮：防止中文逐字断行导致竖排 */
+#rl-rule-editor-modal .menu_button {
+  width: auto;
+  white-space: nowrap;
+}
+
 
 
 
